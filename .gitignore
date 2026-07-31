@@ -1,0 +1,23 @@
+# Go build outputs
+/pustaka
+/halaman
+*.exe
+*.test
+*.out
+coverage.out
+
+# Editor and IDE state
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local operating-system files
+.DS_Store
+Thumbs.db
+
+# Local runtime and temporary files
+*.log
+tmp/
+temp/

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Production deployment — Pustaka</title>
+<link rel="stylesheet" href="../../assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body data-page="production"><!-- must equal the id registered in assets/toc.js -->
+
+<div class="shell">
+<main class="doc"><!-- add class "wide" for full-width, "no-pn" to hide prev/next -->
+
+  <p class="eyebrow">Guide</p>
+  <h1>Production deployment</h1>
+  <p class="lede">One- or two-sentence summary. Indexed as the page's search description.</p>
+
+  <h2 id="two-modes">Two ways to ship</h2>
+  <div class="ctabs">
+    <div class="heads"><button class="on">Static host</button><button>Go binary</button></div>
+    <div class="panel on">
+      <p>Push the <code>docs/</code> folder to any static host (GitHub Pages, Nginx, S3).
+      Search runs from the ToC <code>sections</code>; navigation uses full page loads.</p>
+    </div>
+    <div class="panel">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">bash</span><button class="copy">copy</button></div>
+        <pre>go build -o pustaka .
+./pustaka serve ./docs --addr :8080 --prod   <span class="c"># --prod caches the index</span></pre>
+      </div>
+      <p>Put it behind your reverse proxy: one process serves, indexes, gzips, and answers
+      HTMX partials.</p>
+    </div>
+  </div>
+
+  <h2 id="systemd">Run it as a service</h2>
+  <div class="codeblock">
+    <div class="bar"><span class="lang">ini</span><button class="copy">copy</button></div>
+    <pre><span class="c"># /etc/systemd/system/pustaka.service</span>
+[Unit]
+Description=Pustaka docs
+After=network.target
+
+[Service]
+ExecStart=/opt/pustaka/pustaka serve /opt/pustaka/docs --addr :8080 --prod
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target</pre>
+  </div>
+  <div class="adm tip">
+    <p class="adm-title">Why this page is two folders deep</p>
+    <p>This file lives at <code>guide/deploy/production.html</code> — created with
+    <code>pustaka new</code>, which computed the <code>../../</code> asset prefix and registered
+    it automatically. Folders are the tidy way to grow a product's docs.</p>
+  </div>
+
+</main>
+</div>
+
+<script src="../../assets/toc.js"></script>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

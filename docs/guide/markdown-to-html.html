@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Markdown to HTML — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="markdown-to-html">
+<div class="shell">
+<main class="doc">
+  <p class="eyebrow">Guide · Authoring</p>
+  <h1>Convert Markdown to HTML</h1>
+  <p class="lede">Turn an existing Markdown document into a complete Pustaka page without losing
+  structure, searchability, or the static-file workflow.</p>
+  <div class="page-meta" data-tags="markdown, conversion, migration" data-hashtags="markdown, html, pandoc"
+       data-published="2026-07-31" data-updated="2026-07-31"
+       data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="convert">Convert the source</h2>
+  <p>Ask Pandoc for a body fragment, not a complete document. GitHub-Flavored Markdown is a useful
+  default when the source contains task lists, fenced code, or tables.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">shell</span><button class="copy">copy</button></div>
+    <pre>pandoc input.md --from=gfm --to=html5 --output=fragment.html</pre></div>
+  <div class="adm note"><p class="adm-title">Fragment versus standalone</p>
+    <p>Do not add <code>--standalone</code> for this step. Pustaka already supplies the doctype,
+    metadata, stylesheets, shell, and runtime scripts.</p></div>
+
+  <h2 id="fit-the-template">Fit the Pustaka template</h2>
+  <ol>
+    <li>Copy <code>docs/_template.html</code> to the intended kebab-case path.</li>
+    <li>Paste the converted fragment inside <code>&lt;main class="doc"&gt;</code>.</li>
+    <li>Keep the eyebrow, one <code>h1</code>, a concise <code>.lede</code>, and the runtime scripts.</li>
+    <li>Apply one <code>../</code> asset prefix per folder level.</li>
+  </ol>
+  <div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div>
+    <pre>&lt;p class="eyebrow"&gt;Guide&lt;/p&gt;
+&lt;h1&gt;Imported runbook&lt;/h1&gt;
+&lt;p class="lede"&gt;What this runbook solves and who should use it.&lt;/p&gt;
+
+&lt;h2 id="prepare"&gt;Prepare&lt;/h2&gt;
+&lt;p&gt;Converted body content…&lt;/p&gt;</pre></div>
+
+  <h2 id="repair-semantics">Repair semantics</h2>
+  <p>Pandoc produces valid HTML, but the page contract is stricter. Give every <code>h2</code> a
+  unique kebab-case id, turn extension-specific admonitions and tabs into Pustaka components,
+  and keep page scripts as the final children of <code>main.doc</code>.</p>
+  <table class="tbl"><thead><tr><th>Markdown source</th><th>Pustaka result</th></tr></thead><tbody>
+    <tr><td><code>## Install</code></td><td><code>&lt;h2 id="install"&gt;Install&lt;/h2&gt;</code></td></tr>
+    <tr><td>Fenced code</td><td><code>.codeblock</code> with a copy button</td></tr>
+    <tr><td>Extension admonition</td><td><code>.adm.note</code>, <code>.tip</code>, or <code>.warn</code></td></tr>
+    <tr><td>Raw HTML</td><td>Review and sanitize before publishing</td></tr>
+  </tbody></table>
+  <div class="adm warn"><p class="adm-title">Treat imported HTML as code</p>
+    <p>Never publish untrusted conversion output without sanitizing it. Remove scripts, event-handler
+    attributes, unsafe URLs, embedded objects, and markup that violates your content security policy.</p></div>
+
+  <h2 id="register-and-check">Register and check</h2>
+  <p>Add the leaf to the relevant ToC part, including searchable section summaries, then use the
+  checker as the acceptance gate.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">shell</span><button class="copy">copy</button></div>
+    <pre>go build -o pustaka .
+./pustaka check ./docs
+./pustaka serve ./docs</pre></div>
+  <p>See <a href="page-metadata.html">Page metadata</a> when the imported document needs tags,
+  publication dates, or a system-version range.</p>
+
+  <h2 id="ai-recipe">AI conversion recipe</h2>
+  <div class="codeblock"><div class="bar"><span class="lang">prompt</span><button class="copy">copy</button></div>
+    <pre>Convert input.md into docs/guide/imported-runbook.html.
+Use docs/_template.html and ai/AUTHORING_SPEC.md as the contract.
+Preserve factual content; do not invent missing values.
+Give every h2 a unique kebab-case id, translate known components,
+register the complete page leaf in the correct recursive ToC branch,
+and return complete changed files. The result must pass pustaka check ./docs.</pre></div>
+</main>
+</div>
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>

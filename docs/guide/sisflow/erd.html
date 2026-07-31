@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Entity-relationship diagrams — Pustaka</title>
+<link rel="stylesheet" href="../../assets/fonts.css">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body data-page="sisflow-erd">
+<div class="shell">
+<main class="doc wide">
+  <p class="eyebrow">Guide · Components · Diagrams · Sisflow</p>
+  <h1>Entity-relationship diagrams</h1>
+  <p class="lede">Embed an offline Sisflow ERD as an editable workbench or as a fixed,
+  read-only viewer without an entity sidebar.</p>
+  <div class="page-meta" data-tags="sisflow, erd, interactive diagram, read-only"
+       data-hashtags="sisflow, erd, database" data-published="2026-07-31"
+       data-updated="2026-07-31" data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="live-workbench">Live ERD workbench</h2>
+  <p>The boxed variant starts editable. Its entity panel filters a derived view without changing
+  the canonical model; Freeze drawing rebuilds the engine with the real read-only gate.</p>
+  <div class="demo-embed rv">
+    <iframe title="Editable Sisflow ERD workbench"
+            src="../../assets/vendor/sisflow/diagrams-demo.html?diagram=erd&amp;mode=workbench"
+            allow="fullscreen" allowfullscreen loading="lazy"></iframe>
+  </div>
+
+  <h2 id="live-viewer">Live ERD viewer</h2>
+  <p>This unboxed variant has no entity sidebar and starts with <code>readOnly: true</code>.
+  Pan, zoom, fit, both fullscreen scopes, and SVG export remain available.</p>
+  <div class="demo-embed plain rv">
+    <iframe title="Read-only Sisflow ERD viewer"
+            src="../../assets/vendor/sisflow/diagrams-demo.html?diagram=erd&amp;mode=viewer"
+            allow="fullscreen" allowfullscreen loading="lazy"></iframe>
+  </div>
+
+  <h2 id="readonly-contract">Fixed and read-only contract</h2>
+  <table class="tbl"><thead><tr><th>Requirement</th><th>Implementation</th></tr></thead><tbody>
+    <tr><td>Block all mutations</td><td>Create the instance with <code>readOnly: true</code>; mutating commands, drag, edge drawing, reshape, and text editing are gated by the engine.</td></tr>
+    <tr><td>Keep positions fixed</td><td>Use authored <code>x</code>/<code>y</code> values or one deterministic layout. Read-only prevents readers from changing the result.</td></tr>
+    <tr><td>No entity sidebar</td><td>Mount only the canvas. Visibility controls are host UI, not required by Sisflow.</td></tr>
+    <tr><td>Keep navigation</td><td>Read-only deliberately retains selection, pan, wheel zoom, hand mode, fit, fullscreen, and export.</td></tr>
+  </tbody></table>
+
+  <h2 id="runnable-sample">Complete runnable sample</h2>
+  <p>Vendor ZRender and <code>web/static/js</code> from <code>sisflow-js</code>, then place these
+  files beside that <code>vendor/</code> folder. The smaller document is complete and uses the
+  same entity face and relationship markers as the live model.</p>
+  <div class="ctabs">
+    <div class="heads"><button class="on">index.html</button><button>erd.js</button></div>
+    <div class="panel on"><div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div><pre>&lt;!doctype html&gt;
+&lt;meta name="viewport" content="width=device-width"&gt;
+&lt;style&gt;
+  html, body { margin: 0; height: 100%; }
+  #erd { position: relative; width: 100%; height: 100%; background: #f9fafb; }
+  #erd:fullscreen { width: 100vw; height: 100vh; }
+&lt;/style&gt;
+&lt;script src="./vendor/vendor/zrender.min.js"&gt;&lt;/script&gt;
+&lt;div id="erd" tabindex="0"&gt;&lt;/div&gt;
+&lt;button id="viewer-full" type="button"&gt;Viewer fullscreen&lt;/button&gt;
+&lt;button id="export" type="button"&gt;Export SVG&lt;/button&gt;
+&lt;script type="module" src="./erd.js"&gt;&lt;/script&gt;</pre></div></div>
+    <div class="panel"><div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div><pre>import sisflow from './vendor/sisflow/index.js';
+import { SISMAYA_LIGHT } from './vendor/sisflow/theme/themes.js';
+import { defineErdShapes } from './vendor/pages/erd-shapes.js';
+
+sisflow.themes.register('docs-light', SISMAYA_LIGHT);
+const container = document.querySelector('#erd');
+const documentModel = {
+  sisflow: 1,
+  nodes: [
+    { id: 'customer', shape: 'entity', x: 40, y: 80, data: { kind: 'table', name: 'customer', fields: [
+      { name: 'id', type: 'INT', pk: true, nullable: false },
+      { name: 'email', type: 'VARCHAR(190)', unique: true, nullable: false }
+    ] } },
+    { id: 'orders', shape: 'entity', x: 360, y: 80, data: { kind: 'table', name: 'orders', fields: [
+      { name: 'id', type: 'INT', pk: true, nullable: false },
+      { name: 'customer_id', type: 'INT', fk: true, nullable: false,
+        ref: { table: 'customer', column: 'id' } }
+    ] } }
+  ],
+  edges: [{ id: 'fk-orders-customer', from: 'orders', to: 'customer', shape: 'rel',
+    data: { kind: 'fk', markers: { start: 'zero-many', end: 'one' },
+      fromColumns: ['customer_id'], toColumns: ['id'] } }]
+};
+
+const flow = sisflow.create(container, {
+  renderer: 'canvas', theme: 'docs-light', readOnly: true,
+  layout: sisflow.layouts.layered({ direction: 'right' }),
+  edges: { route: 'ortho', corner: 6, jumpOver: true }
+});
+defineErdShapes(flow);              // define before graph.load()
+flow.graph.load(documentModel);     // keep this canonical object unchanged
+flow.commands.zoomToFit(24);
+
+document.querySelector('#viewer-full').onclick = () =&gt;
+  (document.fullscreenElement ? document.exitFullscreen() : container.requestFullscreen());
+document.addEventListener('fullscreenchange', () =&gt; {
+  flow.resize(); flow.commands.zoomToFit(24);
+});
+document.querySelector('#export').onclick = () =&gt; download('erd.svg', flow.export.toSVG());
+addEventListener('beforeunload', () =&gt; flow.dispose());
+
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  a.click(); URL.revokeObjectURL(url);
+}</pre></div></div>
+  </div>
+
+  <h2 id="fullscreen">Canvas and viewer fullscreen</h2>
+  <p>Request fullscreen from the click handler itself so browser user activation is preserved.
+  Inside an iframe, the parent must include <code>allow="fullscreen"</code>. Target the canvas for
+  a pure presentation surface, or a wrapper element to retain the viewer toolbar.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div><pre>async function toggleFullscreen(target) {
+  if (document.fullscreenElement) await document.exitFullscreen();
+  else await target.requestFullscreen();
+}
+
+canvasButton.onclick = () =&gt; toggleFullscreen(container); // canvas only
+viewerButton.onclick = () =&gt; toggleFullscreen(viewerRoot); // complete viewer
+document.addEventListener('fullscreenchange', () =&gt; {
+  flow.resize();
+  flow.commands.zoomToFit(24);
+});</pre></div>
+
+  <h2 id="lifecycle">Rebuild and disposal</h2>
+  <p>Theme, visibility, and read-only are creation-time state. Dispose the old instance, derive a
+  fresh visible document from the canonical JSON, create the replacement, define shapes, load,
+  and fit. Never mutate the canonical ERD merely to hide an entity.</p>
+
+  <h2 id="provenance">Source and provenance</h2>
+  <p>The live assets derive from <code>sisflow-js/examples/sisflow-diagrams.html</code> at commit
+  <code>9ebe079ac9e819fbbb1a743808c6eab62ec949ec</code>. The upstream HTML SHA-256 is
+  <code>dd006fedbe8365ca59ccb3316d671cc8187fef2256e9f7f790dd6ce2ac744e2f</code>.
+  Sisflow is original Sismedika work; the inlined ZRender 6.1.0 substrate retains its complete
+  BSD-3-Clause notice in the standalone asset.</p>
+</main>
+</div>
+<script src="../../assets/toc.js"></script>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

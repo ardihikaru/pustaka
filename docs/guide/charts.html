@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Interactive charts — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="charts">
+
+<div class="shell">
+<main class="doc">
+
+  <p class="eyebrow">Concept</p>
+  <h1>Interactive charts</h1>
+  <p class="lede">The clearest argument for HTML-first docs. These are live Apache ECharts instances:
+  drag the zoom brush, hover the tooltips, toggle the legend — then flip the theme (moon icon) and
+  watch them re-render from the site’s design tokens.</p>
+
+  <h2 id="why-echarts">Why ECharts</h2>
+  <ul>
+    <li><strong>Canvas rendering</strong> — smooth with tens of thousands of points.</li>
+    <li><strong>Interactions built-in</strong> — tooltip, dataZoom, legend, toolbox; zero custom JS.</li>
+    <li><strong>Impossible in Markdown</strong> — mkdocs needs plugins + iframes; here it is one <code>&lt;div&gt;</code> and one <code>init()</code>.</li>
+  </ul>
+
+  <h2 id="demo-line">Demo · request latency under load</h2>
+  <p>Simulated p50/p95/p99 latency of the Go server during a load ramp. Drag on the slider beneath
+  the chart — or pinch on the plot on a phone — to zoom.</p>
+  <div class="chart-frame rv">
+    <p class="cap">latency (ms) · 120 s ramp · drag to zoom</p>
+    <div class="chart" id="chart-latency"></div>
+  </div>
+
+  <h2 id="demo-bar">Demo · engine comparison</h2>
+  <p>Design targets for Pustaka against typical documentation engines (illustrative numbers for the
+  concept phase — the benchmark page will replace these with measured data).</p>
+  <div class="chart-frame rv">
+    <p class="cap">lower is better · click legend items to isolate</p>
+    <div class="chart" id="chart-bench"></div>
+  </div>
+
+  <h2 id="pattern">The embedding pattern</h2>
+  <div class="codeblock">
+    <div class="bar"><span class="lang">html + js</span><button class="copy">copy</button></div>
+    <pre><span class="k">&lt;div</span> class=<span class="s">"chart"</span> id=<span class="s">"my-chart"</span><span class="k">&gt;&lt;/div&gt;</span>
+
+<span class="k">const</span> chart = <span class="f">echarts.init</span>(document.getElementById(<span class="s">'my-chart'</span>));
+chart.<span class="f">setOption</span>({ <span class="c">/* option built from CSS variables */</span> });
+
+<span class="c">// re-skin when the site theme flips</span>
+document.<span class="f">addEventListener</span>(<span class="s">'pustaka:theme'</span>, rebuild);</pre>
+  </div>
+  <div class="adm tip">
+    <p class="adm-title">Tip — lazy init</p>
+    <p>Initialize charts inside an <code>IntersectionObserver</code> so canvases below the fold cost
+    nothing until scrolled into view — this page does exactly that.</p>
+  </div>
+<script>
+(function () {
+  /* Ask the runtime for ECharts (locally vendored copy first, CDN
+     fallback) instead of hard-coding a <script src>. On a partial swap
+     this block re-executes, and the loader is idempotent. Spec §7. */
+  const boot = (H) => H.echarts().then((echarts) => {
+
+    const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    (window.__pustakaCharts || []).forEach(x => { try { x.c.dispose(); } catch (e) { } });
+    const charts = window.__pustakaCharts = [];
+
+    /* ---- data ---- */
+    const t = [...Array(120)].map((_, i) => i + 1);
+    const wave = (base, amp, noise) => t.map(s =>
+      +(base + amp * Math.min(1, s / 80) * (1 + 0.3 * Math.sin(s / 7)) + noise * Math.random()).toFixed(1));
+    const p50 = wave(4, 6, 1.2), p95 = wave(9, 22, 3), p99 = wave(14, 48, 7);
+
+    function baseOpt() {
+      const ink = css('--ink'), muted = css('--muted'), line = css('--line'), accent = css('--accent');
+      return {
+        ink, muted, line, accent,
+        textStyle: { color: muted, fontFamily: 'Atkinson Hyperlegible, sans-serif' },
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: css('--panel'), borderColor: line,
+          textStyle: { color: ink, fontSize: 12.5 },
+          axisPointer: { type: 'cross', label: { backgroundColor: accent } }
+        },
+        grid: { left: 44, right: 16, top: 42, bottom: 52 }
+      };
+    }
+
+    function latencyOption() {
+      const b = baseOpt();
+      return {
+        textStyle: b.textStyle, tooltip: b.tooltip, grid: b.grid,
+        color: [b.accent, '#D97E00', '#C24A6B'],
+        legend: { top: 4, textStyle: { color: b.muted, fontSize: 12 } },
+        xAxis: { type: 'category', data: t, name: 's', axisLine: { lineStyle: { color: b.line } }, axisLabel: { color: b.muted } },
+        yAxis: { type: 'value', splitLine: { lineStyle: { color: b.line } }, axisLabel: { color: b.muted } },
+        dataZoom: [
+          { type: 'inside' },
+          { type: 'slider', height: 18, bottom: 8, borderColor: b.line,
+            fillerColor: 'rgba(10,150,183,.14)', handleStyle: { color: b.accent } }
+        ],
+        series: [
+          { name: 'p50', type: 'line', data: p50, smooth: true, showSymbol: false, lineStyle: { width: 2.4 },
+            areaStyle: { opacity: .10 } },
+          { name: 'p95', type: 'line', data: p95, smooth: true, showSymbol: false, lineStyle: { width: 2 } },
+          { name: 'p99', type: 'line', data: p99, smooth: true, showSymbol: false, lineStyle: { width: 1.6, type: 'dashed' } }
+        ],
+        animationDuration: 700, animationEasing: 'cubicOut'
+      };
+    }
+
+    function benchOption() {
+      const b = baseOpt();
+      return {
+        textStyle: b.textStyle, grid: { left: 110, right: 24, top: 40, bottom: 24 },
+        tooltip: { ...b.tooltip, trigger: 'item' },
+        color: [b.accent, b.muted],
+        legend: { top: 4, textStyle: { color: b.muted, fontSize: 12 } },
+        xAxis: { type: 'value', splitLine: { lineStyle: { color: b.line } }, axisLabel: { color: b.muted, formatter: '{value} ms' } },
+        yAxis: { type: 'category', data: ['Pustaka (Go+HTMX)', 'mkdocs-material', 'Docusaurus', 'GitBook'],
+                 axisLine: { lineStyle: { color: b.line } }, axisLabel: { color: b.ink, fontSize: 12 } },
+        series: [
+          { name: 'First page (cold)', type: 'bar', data: [120, 480, 850, 700], barWidth: 13,
+            itemStyle: { borderRadius: [0, 6, 6, 0] } },
+          { name: 'Navigate (warm)', type: 'bar', data: [25, 210, 160, 300], barWidth: 13,
+            itemStyle: { borderRadius: [0, 6, 6, 0], opacity: .55 } }
+        ],
+        animationDelay: (i) => i * 90
+      };
+    }
+
+    /* ---- lazy init + theme + resize ---- */
+    const defs = [
+      { id: 'chart-latency', opt: latencyOption },
+      { id: 'chart-bench', opt: benchOption }
+    ];
+    const IO = window.IntersectionObserver || class { constructor(cb){this.cb=cb;} observe(t){this.cb([{isIntersecting:true,target:t}],this);} unobserve(){} };
+    const io = new IO((es) => es.forEach(e => {
+      if (!e.isIntersecting) return;
+      io.unobserve(e.target);
+      const d = defs.find(d => d.id === e.target.id);
+      const c = echarts.init(e.target);
+      c.setOption(d.opt());
+      charts.push({ c, d });
+    }), { rootMargin: '80px' });
+    defs.forEach(d => { const n = document.getElementById(d.id); if (n) io.observe(n); });
+
+    document.addEventListener('pustaka:theme', () =>
+      charts.forEach(({ c, d }) => { if (!c.isDisposed()) c.setOption(d.opt(), { notMerge: true }); }));
+    addEventListener('resize', () => charts.forEach(({ c }) => { if (!c.isDisposed()) c.resize(); }), { passive: true });
+
+  }).catch((err) => {
+    document.querySelectorAll('.chart').forEach(n => H.chartFailed(n, err.message));
+  });
+
+  if (window.pustaka) boot(window.pustaka);
+  else document.addEventListener('pustaka:ready', e => boot(e.detail), { once: true });
+})();
+</script>
+
+</main>
+</div>
+
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+
+</body>
+</html>

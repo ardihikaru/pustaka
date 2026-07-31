@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Page metadata — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="page-metadata">
+<div class="shell">
+<main class="doc">
+  <p class="eyebrow">Guide · Authoring</p>
+  <h1>Page metadata</h1>
+  <p class="lede">Add optional, machine-readable tags, hashtags, dates, and system-version
+  applicability to any page without duplicating presentation markup.</p>
+  <div class="page-meta" data-tags="metadata, reference, semver" data-hashtags="metadata, docs, versioning"
+       data-published="2026-07-31" data-updated="2026-07-31"
+       data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="contract">The metadata contract</h2>
+  <p>Place one empty <code>.page-meta</code> element after the lede. Its data attributes are the
+  source of truth; the runtime renders accessible chips, semantic dates, and the version badge.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div>
+    <pre>&lt;div class="page-meta"
+     data-tags="deployment, production"
+     data-hashtags="deploy, operations"
+     data-published="2026-07-31"
+     data-updated="2026-08-04"
+     data-version-from="0.6.0"
+     data-version-to="0.8.x"&gt;&lt;/div&gt;</pre></div>
+  <p>Write comma-separated display tags without leading <code>#</code>. Hashtags are lowercase
+  machine tokens containing letters, digits, and hyphens.</p>
+
+  <h2 id="version-ranges">Version ranges</h2>
+  <p><code>data-version-from</code> is a full SemVer lower bound and is always required when the
+  component is present. Leave <code>data-version-to</code> empty for “this version and later,” use a
+  full upper version for an exact boundary, or use a terminal wildcard such as <code>0.8.x</code>.</p>
+  <table class="tbl"><thead><tr><th>Attributes</th><th>Rendered meaning</th></tr></thead><tbody>
+    <tr><td><code>from="0.6.0" to=""</code></td><td>v0.6.0+</td></tr>
+    <tr><td><code>from="0.6.0" to="0.8.4"</code></td><td>v0.6.0–v0.8.4</td></tr>
+    <tr><td><code>from="0.6.0" to="0.8.x"</code></td><td>v0.6.0–v0.8.x</td></tr>
+  </tbody></table>
+
+  <h2 id="validation">Validation</h2>
+  <p>The component is optional. Once present, all fields except the upper version bound must be
+  non-empty. The checker rejects duplicate items, invalid ISO dates, an update before publication,
+  malformed versions, and reversed ranges.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">shell</span><button class="copy">copy</button></div>
+    <pre>./pustaka check ./docs</pre></div>
+  <div class="adm note"><p class="adm-title">Search tags are separate</p>
+    <p>The page metadata is the header source of truth. Keep the ToC leaf's <code>tags</code> useful
+    too: static search reads the registry without fetching every HTML file.</p></div>
+
+  <h2 id="ai-prompt">AI prompt</h2>
+  <div class="codeblock"><div class="bar"><span class="lang">prompt</span><button class="copy">copy</button></div>
+    <pre>Add the optional Pustaka page-meta component immediately after the lede.
+Use only facts supplied in this task. Dates must be YYYY-MM-DD, updated must
+not predate published, hashtags must be lowercase kebab-case, and the lower
+version must be a complete SemVer. Leave data-version-to empty when no end
+version is known. Run pustaka check ./docs and correct every reported error.</pre></div>
+</main>
+</div>
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>

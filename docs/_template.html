@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>PAGE TITLE — Pustaka</title>
+<link rel="stylesheet" href="assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body data-page="PAGE-ID"><!-- must equal the id registered in the ToC part -->
+<!-- FOLDER RULE: this template is written for a ROOT-level page. If the page
+     lives in a folder, prefix every assets/ reference with ../ per level
+     (guide/x.html → ../assets/…, guide/deploy/x.html → ../../assets/…).
+     `pustaka new <dir> <path> --title …` does all of this for you. -->
+
+<div class="shell">
+<main class="doc"><!-- add class "wide" for full-width, "no-pn" to hide prev/next -->
+
+  <p class="eyebrow">GROUP NAME</p>
+  <h1>PAGE TITLE</h1>
+  <p class="lede">One- or two-sentence summary. Indexed as the page's search description.</p>
+
+  <!-- Optional machine-readable header metadata. Remove this comment wrapper
+  <div class="page-meta"
+       data-tags="reference, example"
+       data-hashtags="pustaka, docs"
+       data-published="2026-07-31"
+       data-updated="2026-07-31"
+       data-version-from="0.6.0"
+       data-version-to=""></div>
+  -->
+
+  <h2 id="first-section">First section</h2><!-- every h2 MUST have a kebab-case id -->
+  <p>Content. Any valid HTML is allowed; prefer the component vocabulary
+  from ai/AUTHORING_SPEC.md so pages stay consistent.</p>
+
+  <!-- Page-specific scripts (charts etc.) go HERE, inside main, as the
+       last children — so HTMX partial swaps carry and re-execute them.
+       Guard global listeners: they run again on every visit.
+       To use the runtime API (search, highlight, url), wait for it — on a
+       normal load this script runs BEFORE assets/site.js:
+         if (window.pustaka) start(window.pustaka);
+         else document.addEventListener("pustaka:ready", e => start(e.detail), { once: true });
+  -->
+
+</main>
+</div>
+
+<script src="assets/toc.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

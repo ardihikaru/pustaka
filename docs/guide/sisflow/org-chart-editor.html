@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Org chart editor — Pustaka</title>
+<link rel="stylesheet" href="../../assets/fonts.css">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body data-page="sisflow-org-chart-editor">
+<div class="shell">
+<main class="doc wide">
+  <p class="eyebrow">Guide · Components · Diagrams · Sisflow</p>
+  <h1>Org chart editor</h1>
+  <p class="lede">Edit a tree-shaped organization chart with inline labels, add-child controls,
+  and collapsible branches while keeping the underlying reporting tree fixed.</p>
+  <div class="page-meta" data-tags="sisflow, org chart, tree, editor, read-only" data-hashtags="sisflow, org-chart, hierarchy"
+       data-published="2026-07-31" data-updated="2026-07-31" data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="live-workbench">Live org-chart-editor workbench</h2>
+  <p>The workbench keeps the hierarchy visible while letting you edit labels, add direct reports,
+  and collapse or expand branches. It is a tree editor first, not a general-purpose canvas, and
+  the fullscreen control turns it into a proper editing surface.</p>
+  <div class="demo-embed rv"><iframe title="Editable Sisflow org-chart-editor workbench"
+    src="../../assets/vendor/sisflow/org-chart-editor-demo.html?mode=workbench"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="live-viewer">Live org-chart-editor viewer</h2>
+  <p>The viewer removes edit affordances and keeps the chart in a read-only inspection mode for
+  browsing the hierarchy, roles, and branch structure. Use fullscreen to read the tree as a
+  single vertical story instead of a sidebar-sized preview.</p>
+  <div class="demo-embed plain rv"><iframe title="Read-only Sisflow org-chart-editor viewer"
+    src="../../assets/vendor/sisflow/org-chart-editor-demo.html?mode=viewer"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="tree-editor-workflow">Tree-editor workflow</h2>
+  <p>The editor workflow is intentionally narrow: select a node, adjust the text, append a child,
+  or collapse a branch. That keeps the UI close to the mental model of an org chart, where the
+  shape of the hierarchy matters more than freeform layout.</p>
+  <table class="tbl"><thead><tr><th>Action</th><th>Result</th></tr></thead><tbody>
+    <tr><td>Edit label</td><td>Updates the person name or role in place.</td></tr>
+    <tr><td>Add child</td><td>Creates a direct report under the selected manager.</td></tr>
+    <tr><td>Collapse branch</td><td>Hides descendants without changing the tree model.</td></tr>
+    <tr><td>Reset</td><td>Restores the canonical org tree from the source model.</td></tr>
+  </tbody></table>
+
+  <h2 id="readonly-contract">Fixed and read-only contract</h2>
+  <p>Freeze mode disables text editing and branch mutation. The hierarchy stays intact, and the
+  viewer still serves as an inspection surface for the reporting structure and level accents.</p>
+
+  <h2 id="runnable-sample">Complete runnable sample</h2>
+  <p>The runnable sample is a recursive tree renderer with inline editing and branch controls. The
+  same source model can be swapped into a workbench iframe or a viewer iframe without changing the
+  data itself.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div><pre>&lt;!doctype html&gt;
+&lt;meta name="viewport" content="width=device-width"&gt;
+&lt;iframe id="org-chart" src="../../assets/vendor/sisflow/org-chart-editor-demo.html?mode=workbench"
+  allow="fullscreen" style="width:100%;height:760px;border:0;border-radius:16px"&gt;&lt;/iframe&gt;
+
+&lt;script type="module"&gt;
+  const frame = document.querySelector('#org-chart');
+  // Rebuild from the same canonical tree when switching modes.
+  const setMode = (mode) =&gt; { frame.src = `../../assets/vendor/sisflow/org-chart-editor-demo.html?mode=${mode}`; };
+  setMode('workbench');
+  // setMode('viewer');
+&lt;/script&gt;</pre></div>
+
+  <h2 id="fullscreen">Fullscreen and embedding</h2>
+  <p>Fullscreen the iframe or its wrapper from a click handler. The embedded document is still
+  responsible for the tree controls, so the host only needs to grant fullscreen access.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div><pre>toggle.onclick = async () =&gt; {
+  if (document.fullscreenElement) await document.exitFullscreen();
+  else await document.querySelector('#org-chart').requestFullscreen();
+};</pre></div>
+
+  <h2 id="lifecycle">Lifecycle</h2>
+  <p>Dispose the current tree before changing mode or replacing the source model. That preserves
+  the canonical hierarchy and avoids mixing old branch state with a new tree.</p>
+
+  <h2 id="provenance">Source and provenance</h2>
+  <p>The page is adapted from the upstream <code>sisflow-js</code> org-chart-editor sample at
+  commit <code>9ebe079ac9e819fbbb1a743808c6eab62ec949ec</code>. The local demo keeps the same
+  tree-editing contract, but the docs page uses a lighter host wrapper for this site.</p>
+</main>
+</div>
+<script src="../../assets/toc.js"></script>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

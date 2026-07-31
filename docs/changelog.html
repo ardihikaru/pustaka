@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Changelog — Pustaka</title>
+<link rel="stylesheet" href="assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body data-page="changelog">
+
+<div class="shell">
+<main class="doc">
+
+  <p class="eyebrow">Project</p>
+  <h1>Changelog</h1>
+  <p class="lede">One repo documents one product, so this page is the product's single release
+  history. Every user-visible change lands here, versioned with semantic versioning.</p>
+
+  <h2 id="versioning-policy">Versioning policy</h2>
+  <p>Releases follow <a href="https://semver.org" target="_blank" rel="noopener">SemVer</a>:
+  <code>MAJOR.MINOR.PATCH</code>.</p>
+  <div class="pillars">
+    <div class="pillar rv"><h3>Major</h3><p>Breaking changes: authored pages or forks need edits to keep working.</p></div>
+    <div class="pillar rv"><h3>Minor</h3><p>New capability, backwards compatible — new components, commands, endpoints.</p></div>
+    <div class="pillar rv"><h3>Patch</h3><p>Fixes and internal improvements. Nothing to change on your side.</p></div>
+  </div>
+  <div class="adm note">
+    <p class="adm-title">Keeping it honest</p>
+    <p>The current version lives in <code>assets/toc.js</code> (<code>product.semver</code>) and is
+    shown in the header badge. A release isn't done until this page and that field are updated —
+    the AI authoring prompt treats them as one unit.</p>
+  </div>
+
+  <h2 id="releases">Releases</h2>
+  <div class="clog">
+
+    <section class="rel rv">
+      <h3 id="v0-6-0">v0.6.0 <time datetime="2026-07-31">2026-07-31</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> Optional declarative page metadata for display tags, hashtags, publication and update dates, and open or bounded SemVer applicability. The checker validates the complete contract when it is used.</li>
+        <li><span class="chg add">Added</span> Recursive ToC menu nodes with active-path expansion, persisted disclosure state, accessible controls, and leaf flattening for search and previous/next.</li>
+        <li><span class="chg add">Added</span> AI-friendly tutorials for Markdown conversion, page metadata, and nested sidebar navigation.</li>
+        <li><span class="chg add">Added</span> Two more Sisflow-derived guides—request-workflow and org-chart-editor—plus a DOM-first kanban board sample. The Sisflow pages keep the existing offline workbench/viewer pattern, while the board page is explicitly documented as non-canvas content.</li>
+        <li><span class="chg fix">Fixed</span> Partial swaps now resolve fragment resources against the destination URL before insertion and update history before resource loading, preventing landing-page device images from resolving against the page being left.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
+      <h3 id="v0-5-0">v0.5.0 <time datetime="2026-07-30">2026-07-30</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> Distinct landing layout: <code>&lt;body data-layout="landing"&gt;</code> swaps the docs chrome for a marketing top bar (nav groups become top-level links), hides the sidebar, page-toc rail and prev/next, and enables a full-bleed hero with a CSS-generated gradient-and-grid background — no image request.</li>
+        <li><span class="chg add">Added</span> Device mockups now embed <strong>real screenshots</strong> of live pages (390 × 780 portrait, 1280 × 800 tablet), captured with a headless browser instead of hand-built CSS miniatures.</li>
+        <li><span class="chg add">Added</span> Self-hosted assets: ECharts is vendored to <code>assets/vendor/</code> and the three typefaces to <code>assets/fonts/</code> (woff2, latin). Pages now make <strong>zero third-party requests</strong> and render identically offline or behind a strict CSP.</li>
+        <li><span class="chg add">Added</span> <code>pustaka.echarts()</code> loader (vendored copy → CDN → visible <code>.chart-fail</code> state) and <code>pustaka.reduced</code> on the runtime API.</li>
+        <li><span class="chg fix">Fixed</span> <strong>Live filters did nothing on most pages.</strong> The stylesheet only defined <code>.card.hide</code>, so filtering an admonition list applied the class but never hid anything. Replaced with a <code>.hide</code> state utility that works on any element type.</li>
+        <li><span class="chg fix">Fixed</span> <strong>Charts silently rendered nothing</strong> when ECharts was unavailable — <code>if (!window.echarts) return;</code> left an empty box with no explanation. Chart pages now await the loader and surface a readable failure instead.</li>
+        <li><span class="chg fix">Fixed</span> <strong>Landing chrome leaked into docs pages.</strong> <code>data-layout</code> lives on <code>&lt;body&gt;</code>, which partial swaps do not replace, so navigating away from the home page kept the sidebar hidden. The partial endpoint now reports <code>layout</code> and the runtime applies it per swap.</li>
+        <li><span class="chg fix">Fixed</span> Device mockups looked empty: their contents were drawn at 6 px in <code>--line</code> and <code>--faint</code>, effectively invisible.</li>
+        <li><span class="chg fix">Fixed</span> Hero background silently dropped because it referenced an undefined <code>--bg</code> token; substitution produced an invalid declaration. Now uses <code>--paper</code>, and every <code>var()</code> in the stylesheet is audited against the defined tokens.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
+      <h3 id="v0-4-0">v0.4.0 <time datetime="2026-07-30">2026-07-30</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> Interactive landing page: hero, device mockups that render real page miniatures in <strong>380&nbsp;px portrait</strong> and <strong>tablet landscape</strong>, an embedded live-search demo, an animated AI authoring-loop replay, and measured performance metrics.</li>
+        <li><span class="chg add">Added</span> <a href="guide/ai-tutorial.html">AI authoring tutorial</a> — the four prompt inputs, a copyable task template, the correction loop, six real failure modes with fixes, and a CI gate workflow.</li>
+        <li><span class="chg add">Added</span> <a href="concept/performance.html">Performance page</a> — measured payloads, latency distribution, index build cost, reproduction commands, and an honest section on where the engine would slow down.</li>
+        <li><span class="chg add">Added</span> Public runtime API <code>window.pustaka</code> (<code>search</code>, <code>highlight</code>, <code>url</code>, <code>onIndex</code>, <code>serverMode</code>) so pages can embed the real search engine instead of duplicating it.</li>
+        <li><span class="chg add">Added</span> Landing components in the design system: <code>.devices</code>, <code>.lsearch</code>, <code>.aiterm</code>, <code>.metrics</code>.</li>
+        <li><span class="chg change">Changed</span> Search scoring extracted into a reusable <code>query()</code> core shared by the overlay and embedded demos — one implementation, one behaviour.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
+      <h3 id="v0-3-0">v0.3.0 <time datetime="2026-07-30">2026-07-30</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> Nested folders: pages can live at any depth (<code>guide/…</code>, <code>concept/…</code>); the engine, search, partial navigation and validator all resolve paths from the docs root.</li>
+        <li><span class="chg add">Added</span> Multi-file ToC: <code>assets/toc.js</code> now lists <em>parts</em> (<code>assets/toc/*.js</code>) so each registry file stays under 200 lines; <code>pustaka check</code> warns when one grows past that.</li>
+        <li><span class="chg add">Added</span> <code>pustaka new</code>: stamps <code>_template.html</code> into a new page (correct asset prefix for its depth) and registers it at the part's <code>pustaka:insert</code> marker.</li>
+        <li><span class="chg add">Added</span> This changelog page and the standardized <code>.clog</code> component.</li>
+        <li><span class="chg change">Changed</span> <code>check</code> now also validates asset prefixes against folder depth and that every internal link resolves to a real file.</li>
+        <li><span class="chg change">Changed</span> Toolchain moved to Go 1.24 (works on any newer release; stdlib only).</li>
+        <li><span class="chg fix">Fixed</span> Flow-diagram arrows: the connector line struck through the glyph on desktop and overflowed the layout in portrait; arrows are now a dashed marching line with a chevron head, with a true vertical variant on small screens.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
+      <h3 id="v0-2-0">v0.2.0 <time datetime="2026-07-29">2026-07-29</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> The Go engine: <code>pustaka serve</code> (generated search index, HTMX partial navigation, gzip, dev rebuild), <code>pustaka check</code>, <code>pustaka index</code>.</li>
+        <li><span class="chg add">Added</span> AI authoring kit: <code>ai/AUTHORING_SPEC.md</code> and <code>ai/SYSTEM_PROMPT.md</code>; the FAQ page was authored through the check loop.</li>
+        <li><span class="chg change">Changed</span> Runtime auto-detects the server and upgrades from static mode without page edits.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
+      <h3 id="v0-1-0">v0.1.0 <time datetime="2026-07-29">2026-07-29</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> Static concept: design system, injected shell, client-side search with AND semantics, live filters, ECharts, light/dark themes, 380&nbsp;px-and-up responsiveness.</li>
+      </ul>
+    </section>
+
+  </div>
+
+</main>
+</div>
+
+<script src="assets/toc.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

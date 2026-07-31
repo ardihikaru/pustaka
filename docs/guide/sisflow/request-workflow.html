@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Request workflow — Pustaka</title>
+<link rel="stylesheet" href="../../assets/fonts.css">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body data-page="sisflow-request-workflow">
+<div class="shell">
+<main class="doc wide">
+  <p class="eyebrow">Guide · Components · Diagrams · Sisflow</p>
+  <h1>Request workflow</h1>
+  <p class="lede">Model an intake-to-closure request workflow as a fixed Sisflow-derived route
+  or as a workbench that keeps the same path while letting labels and stage notes be edited.</p>
+  <div class="page-meta" data-tags="sisflow, workflow, request, read-only" data-hashtags="sisflow, workflow, request"
+       data-published="2026-07-31" data-updated="2026-07-31" data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="live-workbench">Live request-workflow workbench</h2>
+  <p>The workbench keeps the request path fixed while stage labels remain editable. The active
+  stage highlights the current handoff, and the demo surfaces the same progression in the
+  details panel. Use the embedded fullscreen control for a more app-like walkthrough.</p>
+  <div class="demo-embed rv"><iframe title="Editable Sisflow request-workflow workbench"
+    src="../../assets/vendor/sisflow/request-workflow-demo.html?mode=workbench"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="live-viewer">Live request-workflow viewer</h2>
+  <p>The viewer locks the labels and notes but keeps the request progression and the current-step
+  focus visible for inspection. Fullscreen gives the workflow a more continuous, rightward
+  flow.</p>
+  <div class="demo-embed plain rv"><iframe title="Read-only Sisflow request-workflow viewer"
+    src="../../assets/vendor/sisflow/request-workflow-demo.html?mode=viewer"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="readonly-contract">Fixed and read-only contract</h2>
+  <table class="tbl"><thead><tr><th>Requirement</th><th>Implementation</th></tr></thead><tbody>
+    <tr><td>Keep the route fixed</td><td>The request path stays left-to-right through intake, triage, approval, fulfillment, and closure.</td></tr>
+    <tr><td>Block mutation in viewer mode</td><td>Freeze the workbench to remove label editing and keep the viewer state read-only.</td></tr>
+    <tr><td>Preserve navigation</td><td>Stage selection, previous/next, and reset stay available so readers can inspect the same request from each step.</td></tr>
+    <tr><td>Keep canonical data separate</td><td>The displayed labels and descriptions are derived from one source model and re-rendered rather than mutated in place.</td></tr>
+  </tbody></table>
+
+  <h2 id="runnable-sample">Complete runnable sample</h2>
+  <p>The bootstrap is a small DOM app: one model, one renderer, and one mode toggle. It is
+  intentionally separate from the canvas diagrams because the workflow sample is an interaction
+  pattern, not a graph layout problem.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div><pre>&lt;!doctype html&gt;
+&lt;meta name="viewport" content="width=device-width"&gt;
+&lt;iframe id="workflow" src="../../assets/vendor/sisflow/request-workflow-demo.html?mode=workbench"
+  allow="fullscreen" style="width:100%;height:720px;border:0;border-radius:16px"&gt;&lt;/iframe&gt;
+
+&lt;script type="module"&gt;
+  const workflow = document.querySelector('#workflow');
+  // Swap `mode=viewer` to lock the labels and hide the editor controls.
+  const setMode = (mode) =&gt; { workflow.src = `../../assets/vendor/sisflow/request-workflow-demo.html?mode=${mode}`; };
+  setMode('workbench');
+  // setMode('viewer');
+&lt;/script&gt;</pre></div>
+
+  <h2 id="fullscreen">Fullscreen and embedding</h2>
+  <p>Request fullscreen on the iframe or its wrapper from a click handler so the browser keeps
+  the user activation. When the page is embedded inside another document, the parent iframe must
+  allow fullscreen explicitly.</p>
+<div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div><pre>const frame = document.querySelector('#workflow');
+toggle.onclick = () =&gt; (document.fullscreenElement ? document.exitFullscreen() : frame.requestFullscreen());</pre></div>
+
+  <h2 id="lifecycle">Lifecycle</h2>
+  <p>Keep the workflow model as a canonical object, then rebuild the iframe or re-render from that
+  object when the mode changes. That keeps viewer mode and workbench mode in sync without
+  accumulating DOM edits.</p>
+
+  <h2 id="provenance">Source and provenance</h2>
+  <p>The page is a local reconstruction of the upstream <code>sisflow-js</code> request-workflow
+  sample, pinned to commit <code>9ebe079ac9e819fbbb1a743808c6eab62ec949ec</code>. The embedded
+  demo keeps the same intake-to-closure story while simplifying the host chrome for this docs
+  site.</p>
+</main>
+</div>
+<script src="../../assets/toc.js"></script>
+<script src="../../assets/site.js"></script>
+</body>
+</html>

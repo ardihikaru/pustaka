@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Getting started — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="getting-started">
+
+<div class="shell">
+<main class="doc">
+
+  <p class="eyebrow">Guide</p>
+  <h1>Getting started</h1>
+  <p class="lede">From empty folder to a searchable, navigable doc site in four steps.
+  This mirrors <em>mkdocs-material → getting-started</em>, so you can compare the workflows one-to-one.</p>
+
+  <h2 id="layout">1 · Project layout</h2>
+  <p>A Pustaka site is a folder of HTML files plus a small registry. Pages can live in
+  <strong>nested folders</strong> — this very page is <code>guide/getting-started.html</code>.
+  There is no build step, no <code>node_modules</code>, no YAML config.</p>
+
+  <div class="codeblock">
+    <div class="bar"><span class="lang">tree</span><button class="copy">copy</button></div>
+    <pre>my-docs/
+├── index.html               <span class="c">← landing page (root)</span>
+├── changelog.html           <span class="c">← the product's release history</span>
+├── guide/                   <span class="c">← group pages in folders, any depth</span>
+│   ├── getting-started.html
+│   └── deploy/
+│       └── production.html  <span class="c">← created with `pustaka new`</span>
+├── concept/
+│   └── architecture.html
+└── assets/
+    ├── toc.js               <span class="c">← registry: site + product meta, parts list</span>
+    ├── toc/                 <span class="c">← nav split into parts, &lt; 200 lines each</span>
+    │   ├── overview.js
+    │   ├── guide.js
+    │   └── concept.js
+    ├── site.css             <span class="c">← design tokens + components</span>
+    └── site.js              <span class="c">← shell, search, filters, HTMX swaps</span></pre>
+  </div>
+  <div class="adm note">
+    <p class="adm-title">Folder rule — one mechanical prefix</p>
+    <p>A page's asset links use <code>../</code> once per folder level:
+    root → <code>assets/site.css</code>, <code>guide/…</code> → <code>../assets/site.css</code>,
+    <code>guide/deploy/…</code> → <code>../../assets/site.css</code>.
+    <code>pustaka new</code> computes it for you and <code>pustaka check</code> enforces it.</p>
+  </div>
+
+  <div class="adm note">
+    <p class="adm-title">Note</p>
+    <p>Compare with mkdocs: <code>docs/*.md</code> + <code>mkdocs.yml</code>. Here it is
+    <code>*.html</code> + <code>assets/toc.js</code>. Same mental model, richer medium.</p>
+  </div>
+
+  <h2 id="first-page">2 · Add your first page</h2>
+  <p>Copy any existing page, keep the boilerplate, and write your content inside
+  <code>&lt;main class="doc"&gt;</code>. Everything else — header, sidebar, search, the “on this page”
+  rail, prev/next — is generated for you.</p>
+
+  <div class="codeblock">
+    <div class="bar"><span class="lang">hello.html</span><button class="copy">copy</button></div>
+    <pre><span class="k">&lt;body</span> data-page=<span class="s">"hello"</span><span class="k">&gt;</span>
+<span class="k">&lt;div</span> class=<span class="s">"shell"</span><span class="k">&gt;</span>
+<span class="k">&lt;main</span> class=<span class="s">"doc"</span><span class="k">&gt;</span>
+
+  <span class="k">&lt;h1&gt;</span>Hello, Pustaka<span class="k">&lt;/h1&gt;</span>
+  <span class="k">&lt;p&gt;</span>Any HTML works here — including <span class="k">&lt;canvas&gt;</span>,
+  ECharts, forms, animation…<span class="k">&lt;/p&gt;</span>
+
+<span class="k">&lt;/main&gt;&lt;/div&gt;</span>
+<span class="k">&lt;script</span> src=<span class="s">"assets/toc.js"</span><span class="k">&gt;&lt;/script&gt;</span>
+<span class="k">&lt;script</span> src=<span class="s">"assets/site.js"</span><span class="k">&gt;&lt;/script&gt;</span>
+<span class="k">&lt;/body&gt;</span></pre>
+  </div>
+
+  <h2 id="register">3 · Register it in the ToC</h2>
+  <p>Append one object to <code>assets/toc.js</code>. The <code>sections</code> array doubles as the
+  search index in this static prototype — in the Go version it is extracted from your HTML automatically.</p>
+
+  <div class="codeblock">
+    <div class="bar"><span class="lang">assets/toc.js</span><button class="copy">copy</button></div>
+    <pre>{
+  <span class="f">id</span>:    <span class="s">"hello"</span>,
+  <span class="f">file</span>:  <span class="s">"hello.html"</span>,
+  <span class="f">title</span>: <span class="s">"Hello, Pustaka"</span>,
+  <span class="f">desc</span>:  <span class="s">"My first HTML-native doc page."</span>,
+  <span class="f">tags</span>:  [<span class="s">"example"</span>, <span class="s">"hello"</span>],
+  <span class="f">sections</span>: [
+    { <span class="f">anchor</span>: <span class="s">"intro"</span>, <span class="f">title</span>: <span class="s">"Introduction"</span>,
+      <span class="f">text</span>: <span class="s">"Searchable summary of this section…"</span> }
+  ]
+}</pre>
+  </div>
+
+  <div class="adm tip">
+    <p class="adm-title">Tip</p>
+    <p>Reload and press <b>Ctrl K</b> — your page is already in global search, the sidebar,
+    and the prev/next chain. That is the whole workflow.</p>
+  </div>
+
+  <h2 id="run">4 · Run it</h2>
+  <p>Two modes. The static mode is what you are looking at right now; the server mode is the production target.</p>
+
+  <div class="ctabs">
+    <div class="heads">
+      <button class="on">Static (this prototype)</button>
+      <button>Go server (production)</button>
+      <button>Docker</button>
+    </div>
+    <div class="panel on">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">shell</span><button class="copy">copy</button></div>
+        <pre><span class="c"># nothing to install — open the folder</span>
+open index.html        <span class="c"># macOS</span>
+start index.html       <span class="c"># Windows</span>
+xdg-open index.html    <span class="c"># Linux</span></pre>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">shell</span><button class="copy">copy</button></div>
+        <pre><span class="c"># build once (stdlib only — no dependencies to download)</span>
+go build -o pustaka .
+
+<span class="c"># validate pages (the AI authoring feedback loop)</span>
+./pustaka check ./docs
+
+<span class="c"># serve: generated search index + HTMX partial navigation + gzip</span>
+./pustaka serve ./docs --addr :8080</pre>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">dockerfile</span><button class="copy">copy</button></div>
+        <pre><span class="k">FROM</span> scratch
+<span class="k">COPY</span> pustaka /pustaka
+<span class="k">COPY</span> my-docs /docs
+<span class="k">ENTRYPOINT</span> [<span class="s">"/pustaka"</span>, <span class="s">"serve"</span>, <span class="s">"/docs"</span>]</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="adm tip">
+    <p class="adm-title">The Go CLI is real now</p>
+    <p><code>main.go</code> at the repo root builds the <code>pustaka</code> binary —
+    <code>serve</code>, <code>check</code>, and <code>index</code> commands, stdlib only.
+    When served, this site auto-upgrades: the search index is generated from your HTML and
+    sidebar clicks become partial swaps. See <a href="../concept/architecture.html">the architecture page</a>.</p>
+  </div>
+
+</main>
+</div>
+
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>
