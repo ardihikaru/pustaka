@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Class diagrams — Pustaka</title>
+<link rel="stylesheet" href="../../assets/fonts.css"><link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body data-page="sisflow-class-diagram">
+<div class="shell"><main class="doc wide">
+  <p class="eyebrow">Guide · Components · Diagrams · Sisflow</p>
+  <h1>Class diagrams</h1>
+  <p class="lede">Render UML-style classes with stereotypes, attributes, methods, visibility,
+  and association, inheritance, aggregation, composition, and dependency relationships.</p>
+  <div class="page-meta" data-tags="sisflow, class diagram, uml, read-only" data-hashtags="sisflow, class-diagram, uml"
+       data-published="2026-07-31" data-updated="2026-07-31" data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="live-workbench">Live class-diagram workbench</h2>
+  <p>The boxed workbench starts editable and demonstrates every supported relationship marker.</p>
+  <div class="demo-embed rv"><iframe title="Editable Sisflow class-diagram workbench"
+    src="../../assets/vendor/sisflow/diagrams-demo.html?diagram=class-diagram&amp;mode=workbench"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="live-viewer">Live class-diagram viewer</h2>
+  <p>The unboxed viewer fixes the generated layout with the engine-wide read-only gate.</p>
+  <div class="demo-embed plain rv"><iframe title="Read-only Sisflow class-diagram viewer"
+    src="../../assets/vendor/sisflow/diagrams-demo.html?diagram=class-diagram&amp;mode=viewer"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="readonly-contract">Fixed and read-only contract</h2>
+  <p>The layered layout deterministically places classes from top to bottom. With
+  <code>readOnly: true</code>, readers may inspect and navigate the result but cannot drag a class,
+  edit a member, reshape a relationship, or execute graph mutations.</p>
+
+  <h2 id="runnable-sample">Complete runnable sample</h2>
+  <div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div><pre>&lt;!doctype html&gt;
+&lt;meta name="viewport" content="width=device-width"&gt;
+&lt;style&gt;html,body,#viewer{margin:0;height:100%}#diagram{position:relative;height:calc(100% - 42px)}&lt;/style&gt;
+&lt;script src="./vendor/vendor/zrender.min.js"&gt;&lt;/script&gt;
+&lt;div id="viewer"&gt;&lt;div id="diagram" tabindex="0"&gt;&lt;/div&gt;
+  &lt;button id="canvas-full"&gt;Canvas fullscreen&lt;/button&gt;
+  &lt;button id="viewer-full"&gt;Viewer fullscreen&lt;/button&gt;
+  &lt;button id="export"&gt;Export SVG&lt;/button&gt;&lt;/div&gt;
+&lt;script type="module" src="./class-diagram.js"&gt;&lt;/script&gt;</pre></div>
+  <div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div><pre>import sisflow from './vendor/sisflow/index.js';
+import { SISMAYA_LIGHT } from './vendor/sisflow/theme/themes.js';
+import { defineClassShapes } from './vendor/pages/class-diagram-setup.js';
+
+sisflow.themes.register('docs-light', SISMAYA_LIGHT);
+const container = document.querySelector('#diagram'); // position:relative; height:520px
+const member = (name, type, visibility = '-') =&gt; ({ name, type, visibility, static: false });
+const model = {
+  sisflow: 1,
+  nodes: [
+    { id: 'Shape', shape: 'classbox', x: 300, y: 40, data: { kind: 'class', name: 'Shape',
+      abstract: true, attributes: [member('x', 'float'), member('y', 'float')],
+      methods: [{ ...member('area', 'float', '+'), params: [], abstract: true }] } },
+    { id: 'Circle', shape: 'classbox', x: 120, y: 300, data: { kind: 'class', name: 'Circle',
+      abstract: false, attributes: [member('radius', 'float')],
+      methods: [{ ...member('area', 'float', '+'), params: [], abstract: false }] } },
+    { id: 'Canvas', shape: 'classbox', x: 500, y: 300, data: { kind: 'class', name: 'Canvas',
+      abstract: false, attributes: [member('name', 'string')], methods: [] } }
+  ],
+  edges: [
+    { id: 'inherit', from: 'Circle', to: 'Shape', shape: 'inherit',
+      data: { kind: 'inherit', markers: { start: null, end: 'triangle' } } },
+    { id: 'compose', from: 'Shape', to: 'Canvas', shape: 'compose',
+      data: { kind: 'compose', markers: { start: null, end: 'diamond-filled' },
+        fromLabel: '0..*', toLabel: '1' } }
+  ]
+};
+const flow = sisflow.create(container, {
+  renderer: 'canvas', theme: 'docs-light', readOnly: true,
+  layout: sisflow.layouts.layered({ direction: 'down' }),
+  edges: { route: 'ortho', corner: 6, jumpOver: true }
+});
+defineClassShapes(flow);
+flow.graph.load(model);
+flow.commands.zoomToFit(24);
+const toggleFullscreen = (target) =&gt; document.fullscreenElement
+  ? document.exitFullscreen() : target.requestFullscreen();
+document.querySelector('#canvas-full').onclick = () =&gt; toggleFullscreen(container);
+document.querySelector('#viewer-full').onclick = () =&gt; toggleFullscreen(document.querySelector('#viewer'));
+document.addEventListener('fullscreenchange', () =&gt; { flow.resize(); flow.commands.zoomToFit(24); });
+document.querySelector('#export').onclick = () =&gt; saveSVG(flow.export.toSVG({ padding: 16 }));
+addEventListener('beforeunload', () =&gt; flow.dispose());
+function saveSVG(text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: 'class-diagram.svg' });
+  a.click(); URL.revokeObjectURL(url);
+}</pre></div>
+
+  <h2 id="fullscreen">Canvas and viewer fullscreen</h2>
+  <p>Target the canvas for a pure UML presentation or the viewer wrapper to retain its controls.
+  Always resize and refit on both entry and exit; iframe hosts need <code>allow="fullscreen"</code>.</p>
+
+  <h2 id="lifecycle">Rebuild and disposal</h2>
+  <p>Dispose the current surface before rebuilding, then define class shapes, load the unchanged
+  canonical model, and fit the new instance.</p>
+
+  <h2 id="provenance">Source and provenance</h2>
+  <p>The live sample is pinned to <code>sisflow-js</code> commit
+  <code>9ebe079ac9e819fbbb1a743808c6eab62ec949ec</code>. The upstream standalone SHA-256 is
+  <code>dd006fedbe8365ca59ccb3316d671cc8187fef2256e9f7f790dd6ce2ac744e2f</code> and its inlined
+  ZRender 6.1.0 carries the complete BSD-3-Clause notice.</p>
+</main></div>
+<script src="../../assets/toc.js"></script><script src="../../assets/site.js"></script>
+</body></html>

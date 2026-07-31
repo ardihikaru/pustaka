@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>System architecture diagrams — Pustaka</title>
+<link rel="stylesheet" href="../../assets/fonts.css"><link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body data-page="sisflow-system-architecture">
+<div class="shell"><main class="doc wide">
+  <p class="eyebrow">Guide · Components · Diagrams · Sisflow</p>
+  <h1>System architecture diagrams</h1>
+  <p class="lede">Present services, people, data stores, external systems, and nested boundaries
+  as an editable Sisflow workbench or a fixed read-only architecture viewer.</p>
+  <div class="page-meta" data-tags="sisflow, architecture, systems, read-only" data-hashtags="sisflow, architecture, systems"
+       data-published="2026-07-31" data-updated="2026-07-31" data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="live-workbench">Live architecture workbench</h2>
+  <p>The boxed sample exercises boundary containment, tagged styles, scoped layout, orthogonal,
+  direct and curved routes, theme rebuilding, SVG export, and both fullscreen scopes.</p>
+  <div class="demo-embed rv"><iframe title="Editable Sisflow architecture workbench"
+    src="../../assets/vendor/sisflow/diagrams-demo.html?diagram=architecture-editor&amp;mode=workbench"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="live-viewer">Live architecture viewer</h2>
+  <p>The unboxed viewer starts read-only and omits editor chrome while retaining pan, zoom, fit,
+  export, canvas fullscreen, and complete-viewer fullscreen.</p>
+  <div class="demo-embed plain rv"><iframe title="Read-only Sisflow architecture viewer"
+    src="../../assets/vendor/sisflow/diagrams-demo.html?diagram=architecture-editor&amp;mode=viewer"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="readonly-contract">Fixed and read-only contract</h2>
+  <p>Set <code>readOnly: true</code> when creating the instance. The scoped layout produces the
+  fixed presentation from <code>node.parent</code>; readers cannot reparent, drag, edit, reshape,
+  or invoke a mutating command, but all viewport commands remain available.</p>
+
+  <h2 id="runnable-sample">Complete runnable sample</h2>
+  <p>After copying ZRender and <code>web/static/js</code> into <code>vendor/</code>, this module creates
+  a complete nested architecture document. The HTML host is the same explicit-height container
+  shown on the ERD page.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div><pre>&lt;!doctype html&gt;
+&lt;meta name="viewport" content="width=device-width"&gt;
+&lt;style&gt;html,body,#viewer{margin:0;height:100%}#diagram{position:relative;height:calc(100% - 42px)}&lt;/style&gt;
+&lt;script src="./vendor/vendor/zrender.min.js"&gt;&lt;/script&gt;
+&lt;div id="viewer"&gt;&lt;div id="diagram" tabindex="0"&gt;&lt;/div&gt;
+  &lt;button id="canvas-full"&gt;Canvas fullscreen&lt;/button&gt;
+  &lt;button id="viewer-full"&gt;Viewer fullscreen&lt;/button&gt;
+  &lt;button id="export"&gt;Export SVG&lt;/button&gt;&lt;/div&gt;
+&lt;script type="module" src="./architecture.js"&gt;&lt;/script&gt;</pre></div>
+  <div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div><pre>import sisflow from './vendor/sisflow/index.js';
+import { SISMAYA_LIGHT } from './vendor/sisflow/theme/themes.js';
+import { defineArchitectureShapes, normalizeArchitectureDoc }
+  from './vendor/pages/architecture-editor-setup.js';
+
+sisflow.themes.register('docs-light', SISMAYA_LIGHT);
+const container = document.querySelector('#diagram');
+const architecture = {
+  sisflow: 2,
+  nodes: [
+    { id: 'shop', shape: 'boundary', data: { label: 'Digital Shop' } },
+    { id: 'customer', shape: 'archcard', tags: ['person'], x: 20, y: 180,
+      data: { label: 'Customer', perspectives: { context: true } } },
+    { id: 'web', parent: 'shop', shape: 'archcard', tags: ['service'], x: 220, y: 80,
+      data: { label: 'Web App', perspectives: { runtime: true } } },
+    { id: 'db', parent: 'shop', shape: 'archcard', tags: ['datastore'], x: 500, y: 80,
+      data: { label: 'Orders DB', perspectives: { data: true } } }
+  ],
+  edges: [
+    { id: 'browse', from: 'customer', to: 'web', tags: ['sync'], data: { label: 'Browses' } },
+    { id: 'store', from: 'web', to: 'db', tags: ['sync'], data: { label: 'Reads/writes' } }
+  ],
+  styles: {
+    nodes: [
+      { tag: 'service', shape: 'pill', fill: '#e8f4ff', stroke: '#2563eb', text: '#172554' },
+      { tag: 'datastore', shape: 'roundRect', fill: '#fff7ed', stroke: '#b45309', text: '#431407' },
+      { tag: 'person', shape: 'diamond', fill: '#ecfdf5', stroke: '#047857', text: '#064e3b' }
+    ],
+    edges: [{ tag: 'sync', thickness: 3 }]
+  }
+};
+
+const flow = sisflow.create(container, {
+  renderer: 'canvas', theme: 'docs-light', readOnly: true,
+  layout: sisflow.layouts.scoped({ direction: 'right' }),
+  edges: { route: 'ortho', corner: 6, jumpOver: true }
+});
+defineArchitectureShapes(flow);
+flow.graph.load(normalizeArchitectureDoc(architecture));
+flow.commands.zoomToFit(24);
+
+const toggleFullscreen = (target) =&gt; document.fullscreenElement
+  ? document.exitFullscreen() : target.requestFullscreen();
+document.querySelector('#canvas-full').onclick = () =&gt; toggleFullscreen(container);
+document.querySelector('#viewer-full').onclick = () =&gt; toggleFullscreen(document.querySelector('#viewer'));
+document.addEventListener('fullscreenchange', () =&gt; { flow.resize(); flow.commands.zoomToFit(24); });
+document.querySelector('#export').onclick = () =&gt; saveSVG(flow.export.toSVG({ padding: 16 }));
+addEventListener('beforeunload', () =&gt; flow.dispose());
+function saveSVG(text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: 'architecture.svg' });
+  a.click(); URL.revokeObjectURL(url);
+}</pre></div>
+
+  <h2 id="fullscreen">Canvas and viewer fullscreen</h2>
+  <p>Request fullscreen on the canvas for a presentation-only surface or on its wrapper to retain
+  viewer controls. Give an embedding iframe <code>allow="fullscreen"</code>, and resize plus fit on
+  every <code>fullscreenchange</code>, including exit.</p>
+
+  <h2 id="lifecycle">Rebuild and disposal</h2>
+  <p>Dispose before replacing an instance or switching its creation-time theme/read-only state.
+  Keep the canonical model unchanged and load it into the replacement before fitting.</p>
+
+  <h2 id="provenance">Source and provenance</h2>
+  <p>The sample derives from <code>sisflow-js</code> commit <code>9ebe079ac9e819fbbb1a743808c6eab62ec949ec</code>.
+  The upstream standalone SHA-256 is <code>dd006fedbe8365ca59ccb3316d671cc8187fef2256e9f7f790dd6ce2ac744e2f</code>;
+  its inlined ZRender 6.1.0 retains the complete BSD-3-Clause notice.</p>
+</main></div>
+<script src="../../assets/toc.js"></script><script src="../../assets/site.js"></script>
+</body></html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Go + HTMX architecture — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="architecture">
+
+<div class="shell">
+<main class="doc">
+
+  <p class="eyebrow">Concept</p>
+  <h1>Go + HTMX architecture</h1>
+  <p class="lede">What replaces mkdocs’ Python build step: nothing builds. A single Go binary parses
+  your HTML pages at startup, serves them, and lets HTMX swap only what changes.</p>
+
+  <h2 id="request-flow">Request flow</h2>
+  <p>The first visit returns the full shell. Every navigation after that is an
+  <code>hx-get</code> that replaces only the article region — sidebar state, scroll position of the
+  drawer, and theme survive; the browser URL updates via <code>hx-push-url</code>.</p>
+
+  <div class="flow rv">
+    <div class="node"><b>Browser</b><span>click sidebar link<br><code>hx-get="/guide/x"</code></span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Go router</b><span>match in ~µs<br>read from page cache</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>HTMX swap</b><span>replace <code>&lt;main.doc&gt;</code><br>animate in · push URL</span></div>
+  </div>
+
+  <div class="codeblock">
+    <div class="bar"><span class="lang">html (served shell)</span><button class="copy">copy</button></div>
+    <pre><span class="k">&lt;a</span> href=<span class="s">"/guide/authoring"</span>
+   hx-get=<span class="s">"/partial/guide/authoring"</span>
+   hx-target=<span class="s">"main.doc"</span> hx-swap=<span class="s">"innerHTML transition:true"</span>
+   hx-push-url=<span class="s">"/guide/authoring"</span><span class="k">&gt;</span>Writing pages<span class="k">&lt;/a&gt;</span></pre>
+  </div>
+
+  <div class="adm note">
+    <p class="adm-title">Note — this prototype vs. production</p>
+    <p>Opened from disk, <code>site.js</code> injects the shell client-side and links do full page
+    loads. Under <code>pustaka serve</code> the runtime auto-detects the server and upgrades itself:
+    it fetches the generated index from <code>/__pustaka/index.json</code> and swaps only
+    <code>&lt;main.doc&gt;</code> via <code>/__pustaka/partial/…</code> — the HTMX pattern, with the
+    View Transitions API for animation. Page authors change <strong>nothing</strong>.</p>
+  </div>
+
+  <h2 id="search-index">Search index at startup</h2>
+  <p>The feature that must not regress from mkdocs. On boot, the server walks the docs folder,
+  parses each page with Go’s <code>x/net/html</code>, extracts headings + text per section, and
+  builds an in-memory inverted index. The prototype’s hand-written <code>sections</code> in
+  <code>toc.js</code> disappear — they get generated.</p>
+
+  <div class="codeblock">
+    <div class="bar"><span class="lang">go (sketch)</span><button class="copy">copy</button></div>
+    <pre><span class="k">type</span> <span class="f">Section</span> <span class="k">struct</span> {
+    Page, Anchor, Title, Text <span class="k">string</span>
+}
+
+<span class="k">func</span> <span class="f">BuildIndex</span>(root <span class="k">string</span>) *Index {
+    idx := <span class="f">NewIndex</span>()
+    <span class="f">walkHTML</span>(root, <span class="k">func</span>(page <span class="k">string</span>, doc *html.Node) {
+        <span class="k">for</span> _, s := <span class="k">range</span> <span class="f">splitByHeadings</span>(doc) {  <span class="c">// h2/h3[id]</span>
+            idx.<span class="f">Add</span>(s)                          <span class="c">// tokenize → posting lists</span>
+        }
+    })
+    <span class="k">return</span> idx  <span class="c">// queries answer in-memory, no disk hit</span>
+}</pre>
+  </div>
+
+  <p>Search queries hit <code>GET /search?q=…</code> and return a rendered result fragment that HTMX
+  drops straight into the overlay — the same UI you see when pressing <b>Ctrl K</b> here, minus the
+  client-side index.</p>
+
+  <h2 id="performance">Performance budget</h2>
+  <table class="tbl">
+    <thead><tr><th>Metric</th><th>Target</th><th>How</th></tr></thead>
+    <tbody>
+      <tr><td>Binary size</td><td>&lt; 15 MB, zero deps</td><td>stdlib + <code>x/net/html</code> only, assets embedded via <code>embed.FS</code></td></tr>
+      <tr><td>Cold start</td><td>&lt; 150 ms / 500 pages</td><td>parse + index concurrently with goroutines</td></tr>
+      <tr><td>Page serve</td><td>&lt; 1 ms</td><td>pages pre-rendered &amp; gzip/brotli pre-compressed in memory</td></tr>
+      <tr><td>Search query</td><td>&lt; 16 ms (one frame)</td><td>inverted index, AND-merge of posting lists</td></tr>
+      <tr><td>First paint (3G)</td><td>&lt; 1 s</td><td>system-cached fonts, one CSS file, HTMX ~14 kB</td></tr>
+    </tbody>
+  </table>
+
+  <div class="adm tip">
+    <p class="adm-title">Why not a SPA framework?</p>
+    <p>Docs are content, not app state. HTMX keeps pages as real HTML (perfect SEO, works with JS
+    disabled) while still giving app-like navigation. And a Go binary deploys anywhere a file can.</p>
+  </div>
+
+  <h2 id="roadmap">From this prototype to v1</h2>
+  <ol>
+    <li><strong>Done — static concept (this site):</strong> design system, search UX, filtering, responsiveness, ECharts.</li>
+    <li><strong>Done — <code>pustaka</code> CLI:</strong> Go server with generated index, partial swaps, gzip, dev rebuild, and <code>pustaka check</code> validation.</li>
+    <li><strong>Now — AI authoring loop:</strong> a model writes pages against <code>ai/AUTHORING_SPEC.md</code>, <code>pustaka check</code> is the feedback signal, standardized interactive docs are the output.</li>
+    <li><strong>Then:</strong> tag pages, versioned docs, offline export, live-reload websocket.</li>
+  </ol>
+
+</main>
+</div>
+
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Nested sidebar — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="nested-sidebar">
+<div class="shell">
+<main class="doc">
+  <p class="eyebrow">Guide · Components · Navigation</p>
+  <h1>Nested sidebar navigation</h1>
+  <p class="lede">Organize large documentation sets into recursive sub-menus while preserving
+  search, previous/next order, active-page state, and accessible controls.</p>
+  <div class="page-meta" data-tags="navigation, sidebar, recursive menu" data-hashtags="sidebar, navigation, accessibility"
+       data-published="2026-07-31" data-updated="2026-07-31"
+       data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="schema">Recursive schema</h2>
+  <p>A page remains a leaf with the established key order. A menu is not a page: it has a stable
+  id, a title, and a children array containing more menus or page leaves.</p>
+  <div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div>
+    <pre>{
+  id: "guide-components-menu",
+  title: "Components",
+  children: [
+    {
+      id: "guide-navigation-menu",
+      title: "Navigation",
+      children: [
+        {
+          id: "nested-sidebar",
+          file: "guide/nested-sidebar.html",
+          title: "Nested sidebar",
+          desc: "Implement recursive sidebar menus.",
+          tags: ["sidebar", "navigation"],
+          sections: []
+        }
+      ]
+    }
+  ]
+}</pre></div>
+
+  <h2 id="runtime-behavior">Runtime behavior</h2>
+  <ul>
+    <li>The active page’s complete ancestor path opens automatically.</li>
+    <li>Manual disclosure state is saved locally and shared by desktop and mobile navigation.</li>
+    <li>Menu buttons expose <code>aria-expanded</code> and their controlled region.</li>
+    <li>Search, top navigation, and previous/next flatten only page leaves in document order.</li>
+  </ul>
+  <div class="adm tip"><p class="adm-title">Stable menu ids</p>
+    <p>Use scoped ids such as <code>guide-navigation-menu</code>. They are persistence keys, so
+    changing one intentionally resets that branch’s saved open state.</p></div>
+
+  <h2 id="migration">Migrate a flat group</h2>
+  <ol>
+    <li>Choose related consecutive page leaves.</li>
+    <li>Wrap them in a menu object without editing the leaves themselves.</li>
+    <li>Add deeper menu wrappers where the information architecture requires them.</li>
+    <li>Run the checker, then verify active-path and previous/next order in a browser.</li>
+  </ol>
+  <p>The <code>pustaka new</code> command still inserts a flat leaf at the part marker. Move that
+  complete leaf into the intended <code>children</code> array when nested placement is required.</p>
+
+  <h2 id="ai-recipe">AI authoring recipe</h2>
+  <div class="codeblock"><div class="bar"><span class="lang">prompt</span><button class="copy">copy</button></div>
+    <pre>Register the new page under Guide → Components → Navigation.
+Preserve every existing menu and leaf. Menu nodes use exactly id, title,
+children. Page leaves keep exactly id, file, title, desc, tags, sections.
+Do not duplicate a page at the root. Return the complete changed ToC part
+and run pustaka check ./docs.</pre></div>
+</main>
+</div>
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>

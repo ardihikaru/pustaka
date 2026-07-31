@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Writing pages — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="authoring">
+
+<div class="shell">
+<main class="doc">
+
+  <p class="eyebrow">Guide</p>
+  <h1>Writing pages</h1>
+  <p class="lede">The component vocabulary — everything mkdocs-material gives you via extensions,
+  expressed as plain HTML classes. Each example below is rendered live.</p>
+
+  <h2 id="structure">Page structure</h2>
+  <p>Author only what is unique to your page. The runtime injects everything else:</p>
+  <ul>
+    <li><strong>You write:</strong> <code>&lt;main class="doc"&gt;</code> with headings, prose, components.</li>
+    <li><strong>Injected:</strong> header, sidebar drawer, search overlay, “on this page” rail (from your
+      <code>h2/h3 id</code>s), ¶ anchors, prev/next, footer, back-to-top.</li>
+  </ul>
+
+  <h2 id="admonitions">Admonitions</h2>
+  <p>Three levels, same shape as mkdocs-material’s <code>!!! note</code> blocks:</p>
+
+  <div class="adm note">
+    <p class="adm-title">Note</p>
+    <p><code>&lt;div class="adm note"&gt;</code> — neutral context and cross-references.</p>
+  </div>
+  <div class="adm tip">
+    <p class="adm-title">Tip</p>
+    <p><code>&lt;div class="adm tip"&gt;</code> — shortcuts and best practice.</p>
+  </div>
+  <div class="adm warn">
+    <p class="adm-title">Warning</p>
+    <p><code>&lt;div class="adm warn"&gt;</code> — breaking changes and sharp edges.</p>
+  </div>
+
+  <h2 id="tabs-code">Tabs &amp; code blocks</h2>
+  <p>Content tabs for platform-specific instructions; code blocks get a language label and a
+  copy button wired automatically:</p>
+
+  <div class="ctabs">
+    <div class="heads">
+      <button class="on">HTML</button>
+      <button>Rendered</button>
+    </div>
+    <div class="panel on">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">html</span><button class="copy">copy</button></div>
+        <pre><span class="k">&lt;div</span> class=<span class="s">"codeblock"</span><span class="k">&gt;</span>
+  <span class="k">&lt;div</span> class=<span class="s">"bar"</span><span class="k">&gt;&lt;span</span> class=<span class="s">"lang"</span><span class="k">&gt;</span>go<span class="k">&lt;/span&gt;</span>
+    <span class="k">&lt;button</span> class=<span class="s">"copy"</span><span class="k">&gt;</span>copy<span class="k">&lt;/button&gt;&lt;/div&gt;</span>
+  <span class="k">&lt;pre&gt;</span>fmt.Println("hi")<span class="k">&lt;/pre&gt;</span>
+<span class="k">&lt;/div&gt;</span></pre>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">go</span><button class="copy">copy</button></div>
+        <pre><span class="k">fmt</span>.<span class="f">Println</span>(<span class="s">"hi"</span>)</pre>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="page-filter">Filtering page content — live</h2>
+  <p>The headline feature. Put <code>data-filter="#target"</code> on any input and every child of the
+  target becomes filterable by its text and <code>data-tags</code>. Try it on the component reference:</p>
+
+  <div class="filterbox" style="margin:14px 0 4px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input data-filter="#comp-rows" data-empty="#comp-empty" type="search"
+           placeholder="Filter components… try “nav” or “code”" aria-label="Filter component reference">
+    <span class="count"></span>
+  </div>
+
+  <table class="tbl">
+    <thead><tr><th>Class</th><th>Component</th><th>Injected by runtime?</th></tr></thead>
+    <tbody id="comp-rows">
+      <tr data-tags="callout note tip warn"><td><code>.adm</code></td><td>Admonition callouts</td><td>No — authored</td></tr>
+      <tr data-tags="tabs switch platform"><td><code>.ctabs</code></td><td>Content tabs</td><td>Behavior wired</td></tr>
+      <tr data-tags="code copy clipboard pre"><td><code>.codeblock</code></td><td>Code block + copy button</td><td>Behavior wired</td></tr>
+      <tr data-tags="filter search live input list"><td><code>[data-filter]</code></td><td>Live content filter</td><td>Behavior wired</td></tr>
+      <tr data-tags="metadata tags hashtags dates semver version"><td><code>.page-meta</code></td><td>Optional page header metadata</td><td>Rendered + validated</td></tr>
+      <tr data-tags="card grid link landing"><td><code>.cards</code> / <code>.card</code></td><td>Link card grid</td><td>No — authored</td></tr>
+      <tr data-tags="table reference data"><td><code>.tbl</code></td><td>Reference table</td><td>No — authored</td></tr>
+      <tr data-tags="animation reveal scroll motion"><td><code>.rv</code></td><td>Scroll-reveal animation</td><td>Behavior wired</td></tr>
+      <tr data-tags="nav sidebar toc navigation drawer"><td><code>.sidebar</code></td><td>Section navigation</td><td>Yes — generated</td></tr>
+      <tr data-tags="nav toc headings scrollspy right rail"><td><code>.pagetoc</code></td><td>“On this page” rail</td><td>Yes — generated</td></tr>
+      <tr data-tags="search overlay modal keyboard ctrl k"><td><code>.search-modal</code></td><td>Global search overlay</td><td>Yes — generated</td></tr>
+      <tr data-tags="nav footer previous next chain"><td><code>.pn</code></td><td>Prev / next footer</td><td>Yes — generated</td></tr>
+      <tr data-tags="chart echarts canvas frame"><td><code>.chart-frame</code></td><td>Chart container</td><td>No — authored</td></tr>
+    </tbody>
+  </table>
+  <div class="empty-state" id="comp-empty">No component matches — clear the filter to see all 13.</div>
+
+  <div class="adm note">
+    <p class="adm-title">Note — filter vs. search</p>
+    <p><strong>Filter</strong> narrows what is on <em>this</em> page (like mkdocs-material’s tag filtering).
+    <strong>Search</strong> (<b>Ctrl K</b>) looks across <em>every</em> page via the index in
+    <code>toc.js</code>. Same matcher, different scope.</p>
+  </div>
+
+</main>
+</div>
+
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>

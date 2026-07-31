@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AI authoring tutorial — Pustaka</title>
+<meta name="description" content="How to build the prompt that lets an AI model generate new Pustaka pages, and the check loop that validates them.">
+<link rel="stylesheet" href="../assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="ai-tutorial">
+
+<div class="shell">
+<main class="doc">
+
+  <p class="eyebrow">Guide</p>
+  <h1>AI authoring tutorial</h1>
+  <p class="lede">How to build a prompt that makes any capable model produce valid Pustaka pages —
+  and why the <code>pustaka check</code> loop, not the prompt, is what actually guarantees quality.</p>
+
+  <div class="adm note">
+    <p class="adm-title">The core idea</p>
+    <p>Prompts are advisory; validators are binding. Pustaka exists so that a page has a
+    <em>mechanically checkable</em> definition of “correct”. You don't need a perfect prompt — you
+    need a good prompt plus a gate the model must pass.</p>
+  </div>
+
+  <h2 id="four-inputs">The four inputs of a good prompt</h2>
+  <p>Every successful generation gives the model exactly four things. Skip one and you get the
+  classic failure modes listed further down.</p>
+
+  <div class="ctabs">
+    <div class="heads">
+      <button class="on">1 · Role</button>
+      <button>2 · Standard</button>
+      <button>3 · State</button>
+      <button>4 · Task</button>
+    </div>
+    <div class="panel on">
+      <p><strong>The role</strong> goes in the system prompt: paste
+      <code>ai/SYSTEM_PROMPT.md</code> verbatim. It defines the output contract — complete files
+      only, never fragments — and the rules the model is accountable to.</p>
+    </div>
+    <div class="panel">
+      <p><strong>The standard</strong> is <code>ai/AUTHORING_SPEC.md</code>, attached as context.
+      It carries the page skeleton, the component vocabulary, the folder/prefix rule, the registry
+      key order and the changelog policy.</p>
+    </div>
+    <div class="panel">
+      <p><strong>The state</strong> is the current registry: <code>docs/assets/toc.js</code> plus
+      every <code>docs/assets/toc/*.js</code> part. Without it the model invents group names,
+      duplicates ids, or registers into a part that doesn't exist.</p>
+    </div>
+    <div class="panel">
+      <p><strong>The task</strong> is your one-paragraph brief: the page path, the audience, the
+      sections you want, and which components to use. Be specific about the path — it determines
+      the asset prefix.</p>
+    </div>
+  </div>
+
+  <h2 id="prompt-template">A prompt template you can copy</h2>
+  <p>Paste <code>ai/SYSTEM_PROMPT.md</code> as the system prompt, attach the spec and registry
+  files, then send a task message shaped like this:</p>
+
+  <div class="codeblock">
+    <div class="bar"><span class="lang">prompt</span><button class="copy">copy</button></div>
+    <pre>TASK
+Create <span class="s">guide/rate-limits.html</span> — "API rate limits".
+
+AUDIENCE
+Backend integrators who already have an API key.
+
+SECTIONS (h2, in order)
+1. quotas-by-plan   — table of Free/Pro/Enterprise limits
+2. burst-behaviour  — how the token bucket refills
+3. handling-429     — retry pattern, with a code block
+4. usage-trends     — ECharts line chart, one series per plan tier
+
+COMPONENTS
+- one .adm warning about the 429 retry-after header
+- .ctabs for curl vs Node retry examples
+- chart id "rl-usage", lazy-init + theme sync per spec §7
+
+REGISTER
+Part: assets/toc/guide.js  ·  Group: "Guide"
+Place after "authoring", before "charts".
+
+RELEASE
+This is a new documented capability ⇒ minor bump: add a changelog
+entry and update product.semver.</pre>
+  </div>
+
+  <div class="adm tip">
+    <p class="adm-title">Why name the h2 ids yourself</p>
+    <p>Section ids become search anchors and the “on this page” rail — they are part of your
+    information architecture, and they are the one thing that is expensive to change later
+    because external links point at them. Dictate them; let the model write the prose.</p>
+  </div>
+
+  <h2 id="the-loop">The correction loop</h2>
+  <p>This is the whole workflow. Steps 3–5 repeat until the validator is silent.</p>
+
+  <div class="flow">
+    <div class="node"><b>1 · Prompt</b><span>role + spec + registry + task</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>2 · Save files</b><span>complete pages &amp; ToC part</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>3 · Check</b><span><code>pustaka check ./docs</code></span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>4 · Paste errors</b><span>verbatim, no editing</span></div>
+  </div>
+
+  <p>Paste validator output back <strong>exactly as printed</strong>. The messages are written to be
+  machine-actionable — they name the file, the rule and the fix — so editing or summarising them
+  only removes information the model needs.</p>
+
+  <div class="codeblock">
+    <div class="bar"><span class="lang">bash</span><button class="copy">copy</button></div>
+    <pre>$ ./pustaka check ./docs
+  <span class="c">✗ guide/rate-limits.html — must reference "../assets/site.css"
+      (folder depth 1 ⇒ prefix "../")
+  ✗ guide/rate-limits.html — 1 of 4 h2 headings missing an id
+  ✗ guide/rate-limits.html — link "charts.html" resolves to "guide/charts.html",
+      which does not exist
+  3 problem(s) found</span>
+
+<span class="c"># paste those three lines to the model, save its re-emitted files, then:</span>
+$ ./pustaka check ./docs
+  ✓ 14 pages valid, registry consistent</pre>
+  </div>
+
+  <h2 id="failure-modes">Failure modes and their fixes</h2>
+  <p>These are the mistakes models actually make, in rough order of frequency. All of them are
+  caught by <code>check</code> — this table is for understanding, not for vigilance.</p>
+
+  <div class="filterbox rv">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input data-filter="#fm-list" data-empty="#fm-empty" type="search"
+           placeholder="Filter failure modes… try “prefix”, “script”, “registry”" aria-label="Filter failure modes">
+    <span class="count"></span>
+  </div>
+
+  <div id="fm-list">
+    <div class="adm warn rv" data-tags="prefix assets folder depth">
+      <p class="adm-title">Root-level asset paths on a nested page</p>
+      <p>The model writes <code>assets/site.css</code> for a page in <code>guide/</code>. Cause:
+      the spec's example skeleton is root-level. Fix: state the page path in the task and remind it
+      of the <code>../</code>-per-level rule — or scaffold with <code>pustaka new</code> first and
+      ask the model to fill in the body only.</p>
+    </div>
+    <div class="adm warn rv" data-tags="registry toc key order fragment">
+      <p class="adm-title">Emitting a registry fragment instead of the whole file</p>
+      <p>You get “add this entry to your toc part” instead of the file. Cause: conversational
+      drift over long sessions. Fix: the system prompt forbids fragments — re-state it, and ask
+      for the complete <code>assets/toc/&lt;part&gt;.js</code>.</p>
+    </div>
+    <div class="adm warn rv" data-tags="script partial swap htmx charts">
+      <p class="adm-title">Scripts placed after <code>&lt;/main&gt;</code></p>
+      <p>Charts work on first load and vanish after an in-site navigation. Cause: normal HTML
+      habit. Fix: page scripts must be the last children <em>inside</em>
+      <code>&lt;main class="doc"&gt;</code> so partial swaps carry and re-execute them.</p>
+    </div>
+    <div class="adm warn rv" data-tags="charts dispose leak memory">
+      <p class="adm-title">Missing the chart dispose guard</p>
+      <p>Re-visiting a chart page leaks ECharts instances. Fix: follow the spec's pattern —
+      dispose <code>window.__pustakaCharts</code> before re-initialising.</p>
+    </div>
+    <div class="adm warn rv" data-tags="changelog semver version release">
+      <p class="adm-title">Changelog entry without the version bump</p>
+      <p>The release section is added but <code>product.semver</code> is untouched (or the
+      reverse). Fix: they are one unit; the system prompt says so, and a release isn't done until
+      both land.</p>
+    </div>
+    <div class="adm warn rv" data-tags="prose quality style filler">
+      <p class="adm-title">Valid but hollow prose</p>
+      <p>The one failure <code>check</code> cannot catch: structurally perfect pages that explain
+      nothing. Fix: put concrete constraints in the task (“show a worked 429 retry with real
+      header names”) and skim the prose before merging. Validators check form, not insight.</p>
+    </div>
+  </div>
+  <div class="empty-state" id="fm-empty">No failure modes match — try a broader word.</div>
+
+  <h2 id="ci-gate">Make the gate automatic</h2>
+  <p>The same command that closes the AI loop is your pull-request gate, so human and machine
+  contributions are held to one standard:</p>
+
+  <div class="codeblock">
+    <div class="bar"><span class="lang">yaml</span><button class="copy">copy</button></div>
+    <pre><span class="c"># .github/workflows/docs.yml</span>
+name: docs
+on: [pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: <span class="s">'stable'</span> }
+      - run: go build -o pustaka .
+      - run: ./pustaka check ./docs</pre>
+  </div>
+
+  <div class="adm note">
+    <p class="adm-title">Proof this works</p>
+    <p>Two pages in this site came out of the loop: <a href="../concept/faq.html">the FAQ</a>
+    (first draft failed with three violations, second passed) and
+    <a href="deploy/production.html">production deployment</a>, which started as a
+    <code>pustaka new</code> scaffold.</p>
+  </div>
+
+</main>
+</div>
+
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>

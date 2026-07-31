@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Block diagrams — Pustaka</title>
+<link rel="stylesheet" href="../../assets/fonts.css"><link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body data-page="sisflow-block-diagram">
+<div class="shell"><main class="doc wide">
+  <p class="eyebrow">Guide · Components · Diagrams · Sisflow</p>
+  <h1>Block diagrams</h1>
+  <p class="lede">Model signal paths, transfer blocks, terminals, summing junctions, takeoffs,
+  infrastructure icons, and annotations in editable or fixed read-only form.</p>
+  <div class="page-meta" data-tags="sisflow, block diagram, controls, read-only" data-hashtags="sisflow, block-diagram, controls"
+       data-published="2026-07-31" data-updated="2026-07-31" data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="live-workbench">Live block-diagram workbench</h2>
+  <p>The boxed sample starts editable and renders the complete upstream control-system model.</p>
+  <div class="demo-embed rv"><iframe title="Editable Sisflow block-diagram workbench"
+    src="../../assets/vendor/sisflow/diagrams-demo.html?diagram=block-diagram&amp;mode=workbench"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="live-viewer">Live block-diagram viewer</h2>
+  <p>The unboxed viewer is read-only from creation and contains no palette or sidebar.</p>
+  <div class="demo-embed plain rv"><iframe title="Read-only Sisflow block-diagram viewer"
+    src="../../assets/vendor/sisflow/diagrams-demo.html?diagram=block-diagram&amp;mode=viewer"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="readonly-contract">Fixed and read-only contract</h2>
+  <p>Authored coordinates preserve the control-system geometry. Global <code>readOnly: true</code>
+  prevents node movement, label editing, new connections, reshape, and history mutation while
+  keeping viewport navigation and export enabled.</p>
+
+  <h2 id="runnable-sample">Complete runnable sample</h2>
+  <div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div><pre>&lt;!doctype html&gt;
+&lt;meta name="viewport" content="width=device-width"&gt;
+&lt;style&gt;html,body,#viewer{margin:0;height:100%}#diagram{position:relative;height:calc(100% - 42px)}&lt;/style&gt;
+&lt;script src="./vendor/vendor/zrender.min.js"&gt;&lt;/script&gt;
+&lt;div id="viewer"&gt;&lt;div id="diagram" tabindex="0"&gt;&lt;/div&gt;
+  &lt;button id="canvas-full"&gt;Canvas fullscreen&lt;/button&gt;
+  &lt;button id="viewer-full"&gt;Viewer fullscreen&lt;/button&gt;
+  &lt;button id="export"&gt;Export SVG&lt;/button&gt;&lt;/div&gt;
+&lt;script type="module" src="./block-diagram.js"&gt;&lt;/script&gt;</pre></div>
+  <div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div><pre>import sisflow from './vendor/sisflow/index.js';
+import { SISMAYA_LIGHT } from './vendor/sisflow/theme/themes.js';
+import { defineBlockDiagramShapes } from './vendor/pages/block-diagram-setup.js';
+
+sisflow.themes.register('docs-light', SISMAYA_LIGHT);
+const container = document.querySelector('#diagram'); // position:relative; height:520px
+const model = {
+  sisflow: 1,
+  nodes: [
+    { id: 'input', shape: 'bd-input', x: 40, y: 140, data: { label: 'Reference' } },
+    { id: 'sum', shape: 'bd-summing', x: 190, y: 130, data: { label: '+/-' } },
+    { id: 'controller', shape: 'bd-block', x: 330, y: 116, data: { label: 'Controller\nC(s)' } },
+    { id: 'plant', shape: 'bd-block', x: 560, y: 116, data: { label: 'Plant\nG(s)' } },
+    { id: 'output', shape: 'bd-output', x: 790, y: 140, data: { label: 'Output' } }
+  ],
+  edges: [
+    { id: 'e1', from: 'input', to: 'sum' }, { id: 'e2', from: 'sum', to: 'controller' },
+    { id: 'e3', from: 'controller', to: 'plant', data: { label: 'u' } },
+    { id: 'e4', from: 'plant', to: 'output', data: { label: 'y' } }
+  ]
+};
+const flow = sisflow.create(container, {
+  renderer: 'canvas', theme: 'docs-light', readOnly: true,
+  grid: { size: 8, snap: true }, edges: { route: 'ortho', corner: 5, jumpOver: true }
+});
+defineBlockDiagramShapes(flow);
+flow.graph.load(model);
+flow.commands.zoomToFit(24);
+const toggleFullscreen = (target) =&gt; document.fullscreenElement
+  ? document.exitFullscreen() : target.requestFullscreen();
+document.querySelector('#canvas-full').onclick = () =&gt; toggleFullscreen(container);
+document.querySelector('#viewer-full').onclick = () =&gt; toggleFullscreen(document.querySelector('#viewer'));
+document.addEventListener('fullscreenchange', () =&gt; { flow.resize(); flow.commands.zoomToFit(24); });
+document.querySelector('#export').onclick = () =&gt; saveSVG(flow.export.toSVG({ padding: 16 }));
+addEventListener('beforeunload', () =&gt; flow.dispose());
+function saveSVG(text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: 'block-diagram.svg' });
+  a.click(); URL.revokeObjectURL(url);
+}</pre></div>
+
+  <h2 id="fullscreen">Canvas and viewer fullscreen</h2>
+  <p>Use the canvas as the Fullscreen API target to remove all host chrome, or use the viewer
+  wrapper to retain controls. An iframe host must explicitly allow fullscreen.</p>
+
+  <h2 id="lifecycle">Rebuild and disposal</h2>
+  <p>Dispose before rebuilding theme or read-only state, then define shapes, reload the unchanged
+  canonical model, and fit the replacement surface.</p>
+
+  <h2 id="provenance">Source and provenance</h2>
+  <p>The live document and catalog come from <code>sisflow-js</code> commit
+  <code>9ebe079ac9e819fbbb1a743808c6eab62ec949ec</code>. The upstream standalone SHA-256 is
+  <code>dd006fedbe8365ca59ccb3316d671cc8187fef2256e9f7f790dd6ce2ac744e2f</code>;
+  its inlined ZRender 6.1.0 keeps the complete BSD-3-Clause notice.</p>
+</main></div>
+<script src="../../assets/toc.js"></script><script src="../../assets/site.js"></script>
+</body></html>

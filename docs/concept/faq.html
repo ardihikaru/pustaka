@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FAQ — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="faq">
+
+<div class="shell">
+<main class="doc">
+
+  <p class="eyebrow">Concept</p>
+  <h1>FAQ</h1>
+  <p class="lede">Short answers to the questions that come up when adopting an HTML-first
+  documentation engine. Filter the list — it's live, like everything here.</p>
+
+  <h2 id="questions">Common questions</h2>
+
+  <div class="filterbox rv">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input data-filter="#faq-list" data-empty="#faq-empty" type="search"
+           placeholder="Filter questions… try “markdown”, “search”, “ai”" aria-label="Filter FAQ">
+    <span class="count"></span>
+  </div>
+
+  <div id="faq-list">
+    <div class="adm note rv" data-tags="markdown migration mkdocs">
+      <p class="adm-title">Can I migrate pages from Markdown?</p>
+      <p>Yes — follow the <a href="../guide/markdown-to-html.html">Markdown to HTML tutorial</a>
+      to render a body fragment, fit it into <code>_template.html</code>, repair heading ids and
+      extension-specific components, register it, and pass <code>pustaka check</code>.</p>
+    </div>
+    <div class="adm note rv" data-tags="search offline static">
+      <p class="adm-title">Does search work without the Go server?</p>
+      <p>Yes. In static mode search runs over the <code>sections</code> arrays in
+      <code>assets/toc.js</code>. The server upgrades this automatically with an index generated
+      from the real page text — same UI, better recall.</p>
+    </div>
+    <div class="adm note rv" data-tags="ai model author standardized">
+      <p class="adm-title">How do AI models write pages safely?</p>
+      <p>Give the model <code>ai/SYSTEM_PROMPT.md</code> and <code>ai/AUTHORING_SPEC.md</code>.
+      It emits complete files; <code>pustaka check ./docs</code> reports spec violations, which
+      you paste back until the check passes. This very page went through that loop.</p>
+    </div>
+    <div class="adm note rv" data-tags="htmx go performance">
+      <p class="adm-title">Why Go + HTMX instead of a JS framework?</p>
+      <p>The content is HTML already, so the server only needs to move fragments: one binary,
+      an in-memory index, and partial swaps of <code>&lt;main.doc&gt;</code>. No build step, no
+      hydration, millisecond responses.</p>
+    </div>
+    <div class="adm note rv" data-tags="charts echarts offline cdn">
+      <p class="adm-title">Do charts work offline?</p>
+      <p>Yes. ECharts is vendored at <code>assets/vendor/echarts.min.js</code> and loaded through
+      <code>pustaka.echarts()</code>. The runtime can fall back to the CDN, but a normal build makes
+      no third-party request and works in an air-gapped environment.</p>
+    </div>
+    <div class="adm note rv" data-tags="deploy hosting github pages nginx">
+      <p class="adm-title">How do I deploy?</p>
+      <p>Static: push the <code>docs/</code> folder to any static host — everything works minus
+      partial swaps. Full experience: run the <code>pustaka</code> binary behind your reverse
+      proxy; it serves, indexes, and gzips in one process.</p>
+    </div>
+  </div>
+  <div class="empty-state" id="faq-empty">No questions match — try a broader word.</div>
+
+</main>
+</div>
+
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>

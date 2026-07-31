@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Pustaka — documentation for humans and AI agents</title>
+<meta name="description" content="Pustaka is an open-source, HTML-first documentation framework for humans and AI agents to discover, understand, generate, update, and validate documentation programmatically.">
+<link rel="stylesheet" href="assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<!-- data-layout="landing" swaps the docs chrome for a marketing top bar:
+     no sidebar, no page-toc rail, no prev/next. Only this page uses it. -->
+<body data-page="home" data-layout="landing">
+
+<div class="shell">
+<main class="doc wide no-pn no-toc">
+
+  <!-- ========================= HERO ========================= -->
+  <section class="lp-hero">
+    <canvas class="lp-network" id="lp-network" aria-hidden="true"></canvas>
+    <div class="inner">
+      <div>
+        <span class="kicker"><span class="dot"></span> v0.6.0 · Go + HTMX · AI-authored</span>
+        <h1>Documentation humans and agents can work with.</h1>
+        <p class="sub">
+          Pustaka is an open-source, <strong>HTML-first</strong> documentation framework designed for
+          humans and AI agents. Agents can discover, understand, generate, update and
+          <strong>validate</strong> interactive documentation programmatically.
+        </p>
+        <div class="cta-row">
+          <a class="btn primary" href="guide/getting-started.html">Get started →</a>
+          <a class="btn ghost" href="guide/ai-tutorial.html">AI page generation</a>
+        </div>
+        <div class="quick">
+          <span><b>0 deps</b> · Go stdlib only</span>
+          <span><b>2.9 kB</b> per navigation</span>
+          <span><b>380 px</b> portrait-first</span>
+        </div>
+      </div>
+
+      <div class="lp-term rv" id="term">
+        <div class="tb"><i></i><i></i><i></i> <span>the authoring loop</span></div>
+        <pre id="term-out"></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DEVICES (real screenshots) ==================== -->
+  <div class="lp-sec-head" style="margin-top:clamp(34px,5vw,58px)">
+    <p class="eyebrow">Responsive</p>
+    <h2 id="responsive">One page, every screen</h2>
+    <p>Docs get read on phones in bed and tablets in meetings. Below are unretouched screenshots of
+    the same page from this site, captured at two real viewport sizes. At 390&nbsp;px the navigation
+    collapses into a sheet and the chart re-flows to the column; from 1200&nbsp;px up, sidebar,
+    article and the “on this page” rail sit side by side.</p>
+  </div>
+
+  <div class="devices">
+    <figure class="dev phone rv">
+      <div class="frame">
+        <img src="assets/img/device-phone.png" width="780" height="1560" loading="lazy" decoding="async"
+             alt="The Interactive charts page at 390 pixels wide in portrait: navigation collapsed into a hamburger, and a full-width live ECharts line chart with its zoom slider fitting the column.">
+        <span class="tagpin">charts · 390 × 780</span>
+      </div>
+      <figcaption>Phone · <b>portrait</b> · nav collapses, chart re-flows</figcaption>
+    </figure>
+
+    <figure class="dev tablet rv">
+      <div class="frame">
+        <img src="assets/img/device-tablet.png" width="1920" height="1200" loading="lazy" decoding="async"
+             alt="The same charts page at 1280 pixels in landscape: persistent sidebar navigation on the left, the article with a live chart in the middle, and the on-this-page rail on the right — all three columns at once.">
+        <span class="tagpin">charts · 1280 × 800</span>
+      </div>
+      <figcaption>Tablet · <b>landscape</b> · all three columns</figcaption>
+    </figure>
+  </div>
+
+  <div class="adm tip">
+    <p class="adm-title">Not a mobile version — the same page</p>
+    <p>Narrow this window to phone width and watch the layout reflow. Identical HTML, identical
+    search index, identical charts. Dark mode is a CSS variable flip, so screenshots and live pages
+    stay in sync.</p>
+  </div>
+
+  <!-- ==================== LIVE SEARCH (full bleed) ==================== -->
+  <section class="lp-full">
+    <div class="inner">
+      <div class="lp-sec-head">
+        <p class="eyebrow">Search</p>
+        <h2 id="search-demo">Answers before you finish typing</h2>
+        <p>Titles, tags and full section text across every page, AND semantics with prefix matching.
+        This box is not a mock-up: it calls the same engine as the ⌘K overlay.</p>
+      </div>
+
+      <div class="lsearch rv" id="ls">
+        <div class="top">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="ls-in" type="search" placeholder="Search the docs — try “semver”, “systemd”, “prompt”…"
+                 autocomplete="off" spellcheck="false" aria-label="Search documentation">
+          <span class="kbd">⌘K anywhere</span>
+        </div>
+        <div class="chips" id="ls-chips">
+          <button data-q="semver">semver</button>
+          <button data-q="chart theme">chart theme</button>
+          <button data-q="systemd">systemd</button>
+          <button data-q="nested folders">nested folders</button>
+          <button data-q="prompt">prompt</button>
+          <button data-q="gzip">gzip</button>
+        </div>
+        <div class="out" id="ls-out"></div>
+        <div class="lsfoot">
+          <span id="ls-stat">ready</span>
+          <span class="mode" id="ls-mode">static index</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== AI AUTHORING ==================== -->
+  <div class="lp-sec-head">
+    <p class="eyebrow">Automation</p>
+    <h2 id="ai-loop">Docs an AI writes — and a validator refuses to accept</h2>
+    <p>This is the part Markdown can't give you. Every page obeys a written spec, so
+    <code>pustaka check</code> mechanically rejects a bad page: the model authors, the gate catches
+    its mistakes, and your readers never see them.</p>
+  </div>
+
+  <div class="cards">
+    <a class="card" href="guide/ai-tutorial.html">
+      <h3>Write the prompt →</h3>
+      <p>The four inputs a model needs, a copyable task template, and the correction loop that turns
+      validator errors into a passing page.</p>
+    </a>
+    <a class="card" href="guide/charts.html">
+      <h3>Build a chart →</h3>
+      <p>ECharts with theme sync, lazy init and swap-safe disposal — vendored locally, so charts
+      work offline and in air-gapped deployments.</p>
+    </a>
+    <a class="card" href="concept/performance.html">
+      <h3>See the numbers →</h3>
+      <p>Measured payloads, latency distribution and index build cost, with the commands to
+      reproduce every figure.</p>
+    </a>
+    <a class="card" href="changelog.html">
+      <h3>Changelog →</h3>
+      <p>One repo documents one product, so releases live in a single semver history — v0.1 to
+      v0.6 is all there.</p>
+    </a>
+  </div>
+
+  <!-- ==================== METRICS (full bleed) ==================== -->
+  <section class="lp-full">
+    <div class="inner">
+      <div class="lp-sec-head">
+        <p class="eyebrow">Performance</p>
+        <h2 id="numbers">Measured, not claimed</h2>
+        <p>Same-host figures from this repository. Loopback removes network latency deliberately:
+        the question is what the engine costs, not what your CDN costs.</p>
+      </div>
+      <div class="metrics">
+        <div class="metric rv"><div class="v">0.8<small>ms</small></div><div class="k">median partial-swap response, warm</div></div>
+        <div class="metric rv"><div class="v">2.9<small>kB</small></div><div class="k">gzipped article per navigation</div></div>
+        <div class="metric rv"><div class="v">31<small>ms</small></div><div class="k">full search index rebuild</div></div>
+        <div class="metric rv"><div class="v">0<small>deps</small></div><div class="k">Go stdlib only · one 8.8 MB binary</div></div>
+      </div>
+      <p style="color:var(--faint); font-size:13px; margin-top:14px">
+        Method and caveats on the <a href="concept/performance.html">performance page</a>.</p>
+    </div>
+  </section>
+
+  <!-- ==================== WHY ==================== -->
+  <div class="lp-sec-head">
+    <p class="eyebrow">Design</p>
+    <h2 id="why">Why HTML-first</h2>
+  </div>
+  <div class="pillars">
+    <div class="pillar rv"><h3>Interactivity is content</h3>
+      <p>Filters, charts and tabs are ordinary markup — no plugin syntax, no iframes, no build step
+      to render them.</p></div>
+    <div class="pillar rv"><h3>One registry</h3>
+      <p><code>assets/toc.js</code> plus small part files. Add a page, add an entry — nav, search
+      and prev/next wire themselves.</p></div>
+    <div class="pillar rv"><h3>Machine-checkable</h3>
+      <p><code>pustaka check</code> validates structure, links, asset prefixes and registry
+      consistency. Run it in CI; hand it to an AI.</p></div>
+    <div class="pillar rv"><h3>No third-party requests</h3>
+      <p>Fonts and ECharts are vendored. The docs render identically offline, air-gapped, or behind
+      a strict CSP.</p></div>
+  </div>
+
+  <!-- ==================== EXPLORE ==================== -->
+  <div class="lp-sec-head" style="margin-top:clamp(30px,4vw,50px)">
+    <p class="eyebrow">Contents</p>
+    <h2 id="explore">Explore the docs</h2>
+    <p>Type to filter — the same live-filter component any page can use.</p>
+  </div>
+  <div class="filterbox rv">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input data-filter="#page-cards" data-empty="#page-empty" type="search"
+           placeholder="Filter these pages… try “ai”, “chart”, “deploy”" aria-label="Filter pages">
+    <span class="count"></span>
+  </div>
+  <div class="cards" id="page-cards">
+    <a class="card" href="guide/getting-started.html" data-tags="start install layout folders">
+      <h3>Getting started</h3><p>Project layout, folders, the registry, and your first page in five minutes.</p></a>
+    <a class="card" href="guide/authoring.html" data-tags="components admonitions tabs filter">
+      <h3>Writing pages</h3><p>The component vocabulary: admonitions, tabs, code blocks, live filters.</p></a>
+    <a class="card" href="guide/markdown-to-html.html" data-tags="markdown html pandoc conversion migration">
+      <h3>Markdown to HTML</h3><p>Convert, repair, register, and validate an existing Markdown document.</p></a>
+    <a class="card" href="guide/page-metadata.html" data-tags="metadata tags hashtags dates semver">
+      <h3>Page metadata</h3><p>Optional chips, publication dates, update dates, and version applicability.</p></a>
+    <a class="card" href="guide/ai-tutorial.html" data-tags="ai prompt generation llm automation">
+      <h3>AI authoring tutorial</h3><p>Build the prompt, feed the right context, run the correction loop.</p></a>
+    <a class="card" href="guide/charts.html" data-tags="charts echarts data visualization">
+      <h3>Interactive charts</h3><p>ECharts with theme sync, lazy init, and swap-safe disposal.</p></a>
+    <a class="card" href="guide/nested-sidebar.html" data-tags="sidebar navigation submenu recursive accessibility">
+      <h3>Nested sidebar</h3><p>Recursive navigation with active paths, persistence, keyboard controls, and ARIA.</p></a>
+    <a class="card" href="guide/sisflow/erd.html" data-tags="sisflow erd diagram entity svg fullscreen readonly">
+      <h3>Interactive Sisflow ERD</h3><p>Entity visibility, freeze mode, hand navigation, fullscreen, and SVG export.</p></a>
+    <a class="card" href="guide/sisflow/request-workflow.html" data-tags="sisflow workflow request readonly tree">
+      <h3>Request workflow</h3><p>Editable workflow stages with a fixed request path and a read-only viewer.</p></a>
+    <a class="card" href="guide/sisflow/org-chart-editor.html" data-tags="sisflow org chart tree editor readonly">
+      <h3>Org chart editor</h3><p>Inline tree editing with add-child controls and branch collapse.</p></a>
+    <a class="card" href="guide/kanban-board.html" data-tags="kanban board dom drag drop export">
+      <h3>Kanban board</h3><p>DOM-first lane board with drag-and-drop cards and JSON export.</p></a>
+    <a class="card" href="guide/deploy/production.html" data-tags="deploy production systemd hosting">
+      <h3>Production deployment</h3><p>Static host or Go binary behind a proxy, with a systemd unit.</p></a>
+    <a class="card" href="concept/architecture.html" data-tags="go htmx server architecture internals">
+      <h3>Go + HTMX architecture</h3><p>How serving, indexing and partial swaps fit together.</p></a>
+    <a class="card" href="concept/performance.html" data-tags="performance benchmark latency payload">
+      <h3>Performance</h3><p>Measured latency, payloads and build times — plus how to reproduce them.</p></a>
+    <a class="card" href="concept/faq.html" data-tags="faq questions migration offline">
+      <h3>FAQ</h3><p>Migration from Markdown, offline search, air-gapped charts, deployment.</p></a>
+    <a class="card" href="changelog.html" data-tags="changelog releases semver versions project">
+      <h3>Changelog</h3><p>The documented product's release history, kept in strict semver.</p></a>
+  </div>
+  <div class="empty-state" id="page-empty">No pages match — try a broader word.</div>
+
+  <!-- ============================================================
+       Page scripts live INSIDE main.doc as its last children so a
+       partial swap carries and re-executes them. Both use the
+       ready-event pattern from AUTHORING_SPEC §8.
+       ============================================================ -->
+  <script>
+  /* ---------- live search demo: reuses the real engine ---------- */
+  (function () {
+    const start = (H) => {
+      const inp = document.getElementById("ls-in");
+      const out = document.getElementById("ls-out");
+      const stat = document.getElementById("ls-stat");
+      const mode = document.getElementById("ls-mode");
+      const chips = document.getElementById("ls-chips");
+      if (!inp || !out) return;
+
+      const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const paintMode = () => {
+        mode.textContent = (H.serverMode ? "server index · " : "static index · ") + H.records + " records";
+      };
+      paintMode();
+      H.onIndex(paintMode);
+
+      function render(q) {
+        if (!q.trim()) {
+          out.innerHTML = `<p style="padding:16px 12px; color:var(--faint); font-size:13.5px">
+            Type a word, or tap a suggestion above. Matching is AND across terms, with prefix
+            matching on titles.</p>`;
+          stat.textContent = "ready";
+          return;
+        }
+        const t0 = performance.now();
+        const { terms, results } = H.search(q, 8);
+        const ms = (performance.now() - t0).toFixed(2);
+        stat.textContent = `${results.length} match${results.length === 1 ? "" : "es"} in ${ms} ms`;
+        if (!results.length) {
+          out.innerHTML = `<p style="padding:16px 12px; color:var(--faint); font-size:13.5px">
+            No matches for “${esc(q)}”. Every term must appear — try removing one.</p>`;
+          return;
+        }
+        out.innerHTML = results.map(r => `
+          <a class="row" href="${H.url(r.href)}">
+            <span class="t">${H.highlight(r.title, terms)}<span class="pg">${esc(r.page.title)}</span></span>
+            <span class="x">${H.highlight(r.text, terms)}</span>
+          </a>`).join("");
+      }
+
+      let tmr;
+      inp.addEventListener("input", () => {
+        clearTimeout(tmr);
+        tmr = setTimeout(() => render(inp.value), 60);
+        [...chips.children].forEach(b => b.classList.remove("on"));
+      });
+      chips.addEventListener("click", e => {
+        const b = e.target.closest("button[data-q]");
+        if (!b) return;
+        [...chips.children].forEach(x => x.classList.toggle("on", x === b));
+        inp.value = b.dataset.q;
+        render(inp.value);
+        inp.focus();
+      });
+      render("");
+    };
+
+    if (window.pustaka) start(window.pustaka);
+    else document.addEventListener("pustaka:ready", e => start(e.detail), { once: true });
+  })();
+  </script>
+
+  <script>
+  /* ---------- hero terminal: typed replay of the authoring loop ---------- */
+  (function () {
+    const start = (H) => {
+      const out = document.getElementById("term-out");
+      if (!out) return;
+
+      const SCRIPT = [
+        { t: "Add guide/rate-limits.html documenting API quotas,\n  with a chart per plan tier.", cls: "p", pre: "prompt ▸ " },
+        { t: "", wait: 240 },
+        { t: "model ▸ writing page + registering it in the ToC", cls: "c" },
+        { t: "", wait: 180 },
+        { t: "$ pustaka check ./docs", cls: "p", speed: 14 },
+        { t: "  ✗ must reference \"../assets/site.css\" (depth 1 ⇒ \"../\")", cls: "er" },
+        { t: "  ✗ 1 of 4 h2 headings missing an id", cls: "er" },
+        { t: "", wait: 260 },
+        { t: "model ▸ fixing both, re-emitting complete files", cls: "c" },
+        { t: "", wait: 200 },
+        { t: "$ pustaka check ./docs", cls: "p", speed: 14 },
+        { t: "  ✓ 14 pages valid, registry consistent", cls: "ok" },
+        { t: "  → live in the nav, the index and partial nav", cls: "c" }
+      ];
+
+      let timers = [], running = false;
+      const wait = ms => new Promise(r => timers.push(setTimeout(r, ms)));
+
+      async function type(line) {
+        const span = document.createElement("span");
+        if (line.cls) span.className = line.cls;
+        out.append(span);
+        const text = (line.pre || "") + line.t;
+        const speed = line.speed || 8;
+        for (let i = 0; i < text.length; i++) {
+          span.textContent = text.slice(0, i + 1);
+          await wait(speed);
+        }
+        out.append(document.createTextNode("\n"));
+      }
+
+      async function run() {
+        if (running) return;
+        running = true;
+        out.textContent = "";
+        for (const line of SCRIPT) {
+          if (line.wait) { await wait(line.wait); continue; }
+          await type(line);
+        }
+        const cur = document.createElement("span");
+        cur.className = "cur";
+        out.append(cur);
+        running = false;
+      }
+
+      /* reduced motion: show the finished transcript, no typing */
+      if (H.reduced) {
+        out.textContent = SCRIPT.filter(l => !l.wait).map(l => (l.pre || "") + l.t).join("\n");
+        return;
+      }
+      run();
+    };
+
+    if (window.pustaka) start(window.pustaka);
+    else document.addEventListener("pustaka:ready", e => start(e.detail), { once: true });
+  })();
+  </script>
+
+  <script>
+  /* ---------- landing atmosphere: pointer-reactive network + spotlights ---------- */
+  (function () {
+    const start = (H) => {
+      const hero = document.querySelector(".lp-hero");
+      const canvas = document.getElementById("lp-network");
+      if (!hero || !canvas || hero.dataset.networkReady) return;
+      hero.dataset.networkReady = "true";
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const reduced = H.reduced;
+      const finePointer = matchMedia("(hover: hover) and (pointer: fine)").matches;
+      const aborter = new AbortController();
+      const signal = aborter.signal;
+      let width = 0, height = 0, dpr = 1;
+      let nodes = [], frame = 0, visible = true, stopped = false;
+      let palette = {};
+      const pointer = { x: -1000, y: -1000, active: false };
+
+      const cssValue = (name) => getComputedStyle(document.documentElement)
+        .getPropertyValue(name).trim();
+
+      function readPalette() {
+        palette = {
+          node: cssValue("--network-node"),
+          edge: cssValue("--network-edge"),
+          glow: cssValue("--network-glow")
+        };
+        if (reduced) draw(false);
+      }
+
+      function makeNodes() {
+        const count = Math.max(18, Math.min(62, Math.round(width * height / 18000)));
+        nodes = Array.from({ length: count }, () => ({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          vx: (Math.random() - .5) * .28,
+          vy: (Math.random() - .5) * .28,
+          r: 1.2 + Math.random() * 1.8,
+          phase: Math.random() * Math.PI * 2
+        }));
+      }
+
+      function resize() {
+        const rect = hero.getBoundingClientRect();
+        width = Math.max(1, rect.width);
+        height = Math.max(1, rect.height);
+        dpr = Math.min(devicePixelRatio || 1, 2);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        canvas.style.width = width + "px";
+        canvas.style.height = height + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        makeNodes();
+        if (reduced) draw(false);
+      }
+
+      function draw(move) {
+        if (!width || !height) return;
+        ctx.clearRect(0, 0, width, height);
+        const connect = Math.max(104, Math.min(168, width * .14));
+
+        if (move) {
+          for (const node of nodes) {
+            node.x += node.vx;
+            node.y += node.vy;
+            node.phase += .018;
+
+            if (pointer.active) {
+              const dx = node.x - pointer.x;
+              const dy = node.y - pointer.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist > 0 && dist < 145) {
+                const force = (145 - dist) / 145 * .045;
+                node.vx += dx / dist * force;
+                node.vy += dy / dist * force;
+              }
+            }
+
+            node.vx *= .997;
+            node.vy *= .997;
+            const speed = Math.hypot(node.vx, node.vy);
+            if (speed > .75) {
+              node.vx = node.vx / speed * .75;
+              node.vy = node.vy / speed * .75;
+            }
+            if (node.x < -8 || node.x > width + 8) node.vx *= -1;
+            if (node.y < -8 || node.y > height + 8) node.vy *= -1;
+            node.x = Math.max(-8, Math.min(width + 8, node.x));
+            node.y = Math.max(-8, Math.min(height + 8, node.y));
+          }
+        }
+
+        ctx.strokeStyle = palette.edge;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const dist = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+            if (dist >= connect) continue;
+            ctx.globalAlpha = (1 - dist / connect) * .34;
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+          }
+        }
+
+        for (const node of nodes) {
+          const pulse = move ? Math.sin(node.phase) * .45 : 0;
+          ctx.globalAlpha = .16;
+          ctx.fillStyle = palette.glow;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, node.r + 5 + pulse, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = .62;
+          ctx.fillStyle = palette.node;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, Math.max(.8, node.r + pulse), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function loop() {
+        if (stopped || !visible || document.hidden) return;
+        if (!hero.isConnected) { cleanup(); return; }
+        draw(true);
+        frame = requestAnimationFrame(loop);
+      }
+
+      function syncLoop() {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        if (!reduced && visible && !document.hidden && !stopped) loop();
+      }
+
+      function cleanup() {
+        if (stopped) return;
+        stopped = true;
+        cancelAnimationFrame(frame);
+        aborter.abort();
+        resizeObserver.disconnect();
+        visibilityObserver.disconnect();
+        removalObserver.disconnect();
+      }
+
+      const resizeObserver = new ResizeObserver(resize);
+      const visibilityObserver = new IntersectionObserver(([entry]) => {
+        visible = entry.isIntersecting;
+        syncLoop();
+      }, { rootMargin: "80px" });
+      const removalObserver = new MutationObserver(() => {
+        if (!hero.isConnected) cleanup();
+      });
+
+      readPalette();
+      resizeObserver.observe(hero);
+      visibilityObserver.observe(hero);
+      removalObserver.observe(document.querySelector("main.doc"), { childList: true });
+
+      document.addEventListener("visibilitychange", syncLoop, { signal });
+      document.addEventListener("pustaka:theme", readPalette, { signal });
+
+      if (finePointer && !reduced) {
+        hero.addEventListener("pointermove", (event) => {
+          const rect = hero.getBoundingClientRect();
+          pointer.x = event.clientX - rect.left;
+          pointer.y = event.clientY - rect.top;
+          pointer.active = true;
+          hero.style.setProperty("--hero-x", pointer.x + "px");
+          hero.style.setProperty("--hero-y", pointer.y + "px");
+        }, { signal, passive: true });
+        hero.addEventListener("pointerleave", () => {
+          pointer.active = false;
+          hero.style.removeProperty("--hero-x");
+          hero.style.removeProperty("--hero-y");
+        }, { signal });
+
+        document.querySelectorAll(".lp-term, .lsearch, .card, .metric, .dev .frame")
+          .forEach((surface) => {
+            surface.classList.add("lp-interactive");
+            const spotlight = document.createElement("span");
+            spotlight.className = "lp-spotlight";
+            spotlight.setAttribute("aria-hidden", "true");
+            surface.append(spotlight);
+            surface.addEventListener("pointermove", (event) => {
+              const rect = surface.getBoundingClientRect();
+              surface.style.setProperty("--spot-x", event.clientX - rect.left + "px");
+              surface.style.setProperty("--spot-y", event.clientY - rect.top + "px");
+              surface.classList.add("spot-on");
+            }, { signal, passive: true });
+            surface.addEventListener("pointerleave", () => surface.classList.remove("spot-on"), { signal });
+          });
+      }
+
+      if (reduced) draw(false);
+      else syncLoop();
+    };
+
+    if (window.pustaka) start(window.pustaka);
+    else document.addEventListener("pustaka:ready", e => start(e.detail), { once: true });
+  })();
+  </script>
+
+</main>
+</div>
+
+<script src="assets/toc.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kanban board — Pustaka</title>
+<link rel="stylesheet" href="../assets/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="kanban-board">
+<div class="shell">
+<main class="doc wide">
+  <p class="eyebrow">Guide · Components · Boards</p>
+  <h1>Kanban board</h1>
+  <p class="lede">A DOM-first board sample with drag-and-drop cards, provider-backed state, and
+  JSON export. This is not a Sisflow canvas diagram.</p>
+  <div class="page-meta" data-tags="kanban, board, dom, drag-and-drop, export" data-hashtags="kanban, workflow, board"
+       data-published="2026-07-31" data-updated="2026-07-31" data-version-from="0.6.0" data-version-to=""></div>
+
+  <h2 id="live-board">Live kanban board</h2>
+  <p>The embedded board is pure DOM: cards move between columns, counts update in place, and the
+  host can export the current board state without a canvas layer. The lanes are arranged
+  explicitly left-to-right so the flow reads like a real Kanban board. Use fullscreen to let the
+  columns breathe and make the work-in-progress flow feel like the real thing.</p>
+  <div class="demo-embed rv"><iframe title="DOM-first kanban board sample"
+    src="../assets/vendor/kanban-board-demo.html"
+    allow="fullscreen" allowfullscreen loading="lazy"></iframe></div>
+
+  <h2 id="sample-behavior">Sample behavior</h2>
+  <p>The board uses the standard Kanban lane model: a card has one current column, columns own
+  their counts, and drop events update the card status immediately. Use fullscreen to let the
+  columns breathe and make the directional flow obvious.</p>
+  <table class="tbl"><thead><tr><th>Behavior</th><th>Notes</th></tr></thead><tbody>
+    <tr><td>Drag cards</td><td>Cards move between lanes by native drag-and-drop.</td></tr>
+    <tr><td>Reset</td><td>Restores the canonical provider snapshot.</td></tr>
+    <tr><td>Export</td><td>Writes the current provider state as JSON.</td></tr>
+    <tr><td>Responsive layout</td><td>The board collapses to one column on small screens.</td></tr>
+  </tbody></table>
+
+  <h2 id="provider-export">Provider and export notes</h2>
+  <p>The provider is a plain JSON object with `columns` and `cards`. Export keeps that shape so
+  a host app can persist the board, diff it, or feed it into a backend API without translation.</p>
+
+  <h2 id="runnable-sample">Implementation snippet</h2>
+  <div class="codeblock"><div class="bar"><span class="lang">html</span><button class="copy">copy</button></div><pre>&lt;!doctype html&gt;
+&lt;meta name="viewport" content="width=device-width"&gt;
+&lt;iframe src="../assets/vendor/kanban-board-demo.html"
+  style="width:100%;height:760px;border:0;border-radius:16px"
+  allow="fullscreen"&gt;&lt;/iframe&gt;</pre></div>
+  <div class="codeblock"><div class="bar"><span class="lang">javascript</span><button class="copy">copy</button></div><pre>const provider = {
+  columns: ['To do', 'In progress', 'Review', 'Done'],
+  cards: [{ id: 'req-104', title: 'Onboard clinic profile', lane: 'todo' }],
+};
+function exportBoard(state) {
+  return new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+}</pre></div>
+
+  <h2 id="embedding">Embedding</h2>
+  <p>Because the board is DOM-first, it can be embedded in plain HTML, a CMS page, or an
+  application shell without a diagramming runtime. The host only needs a container with an
+  explicit height.</p>
+
+  <h2 id="lifecycle">Lifecycle</h2>
+  <p>Keep the provider as the source of truth, then rebuild the board from that provider when the
+  view changes. That keeps drag-and-drop, counts, and export aligned.</p>
+
+  <h2 id="provenance">Source and provenance</h2>
+  <p>The page is adapted from the upstream <code>sisflow-js</code> <code>kanban-board</code>
+  sample at commit <code>9ebe079ac9e819fbbb1a743808c6eab62ec949ec</code>. The local demo is a
+  DOM recreation rather than a canvas diagram, which is why it lives outside the Sisflow subgroup.</p>
+</main>
+</div>
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>
