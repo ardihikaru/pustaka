@@ -50,9 +50,12 @@ pustaka/
 │       ├── img/               Real device screenshots for the landing page
 │       ├── toc.js             Parent registry: site + product meta, parts list
 │       ├── toc/               Nav split into parts, each < 200 lines
-│       │   ├── overview.js
-│       │   ├── guide.js
-│       │   └── concept.js
+│       │   ├── overview.js    Home
+│       │   ├── guide.js       Guide, with nested Authoring/Components/
+│       │   │                  Navigation/Diagrams/Sisflow/Deployment menus
+│       │   ├── guide-samples.js  Samples group (Sisflow workbenches, kanban)
+│       │   ├── concept.js     Architecture, performance, FAQ
+│       │   └── project.js     Changelog
 │       ├── site.css           Design system (light/dark, 380 px → desktop)
 │       └── site.js            Runtime: shell, search, filters, HTMX swaps
 ├── ai/
@@ -193,6 +196,22 @@ else document.addEventListener("pustaka:ready", e => start(e.detail), { once: tr
 `check` with three violations; second passed), and
 `docs/guide/deploy/production.html` came from `pustaka new`.
 
+## Contributing
+
+**`main` is protected by convention: every change lands through a pull
+request.** Branch, verify, push, open a PR — never commit or push to `main`
+directly.
+
+```bash
+git checkout -b feat/my-change
+go test ./... && ./pustaka check ./docs   # both must pass before pushing
+git push -u origin feat/my-change
+gh pr create --base main
+```
+
+`pustaka check ./docs` is the acceptance gate — the same one the AI authoring
+loop uses — so run it locally before opening the PR.
+
 ## Fork checklist (per product)
 
 1. Fork, then edit `docs/assets/toc.js`: `site.name`, `site.tagline`,
@@ -227,15 +246,16 @@ Verified in a **real browser** (headless Chromium via Playwright), not only
 jsdom — jsdom has no layout engine, which is exactly why the filter, mockup and
 chart bugs fixed in v0.5 went unnoticed earlier.
 
-`check` (14 pages incl. depth-2, registry consistency, prefix + link
-resolution) · generated index (76 records incl. per-release anchors) ·
+`go test ./...` covers the checker's page-metadata contract and version-bound
+parsing. Beyond that: `check` (21 pages incl. depth-2, registry consistency,
+prefix + link resolution) · generated index (136 records incl. per-release anchors) ·
 server endpoints for nested paths, gzip integrity, traversal guard, live
 dev rebuild · `new` scaffolding at depth 2 · jsdom smoke tests in static,
 server, and reduced-motion modes: shell, search overlay, embedded search
 demo (AND semantics, chips, empty state, server-index upgrade), AI terminal
 replay, device mockups, live filters, cross-folder partial swaps + history.
 
-Browser regression over all 14 pages asserts: zero third-party requests, the
+Browser regression over all 21 pages asserts: zero third-party requests, the
 brand font actually applied, correct chrome per layout, filters that really
 hide (computed `display`) and restore, chart canvases present **and painted**
 (sampled pixels), no console/page errors — plus `file://` static mode and
