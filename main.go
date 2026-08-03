@@ -8,15 +8,29 @@
 // Pages may live in nested folders (guide/…, concept/…). The registry is
 // assets/toc.js plus the part files it lists (assets/toc/*.js), so each
 // registry file stays small. Go stdlib only: one static binary, zero deps.
+//
+// serve can gate the site behind a single central credential taken from the
+// environment (PUSTAKA_AUTH…, see the auth section). It is off unless
+// PUSTAKA_AUTH is set, and when off the server behaves exactly as it always has.
 package main
 
 import (
 	"compress/gzip"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	_ "embed"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"html"
+	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,6 +45,7 @@ import (
 const (
 	productName         = "pustaka"
 	internalRoutePrefix = "/__pustaka"
+	authRoutePrefix     = internalRoutePrefix + "/auth"
 )
 
 /* ============================== model ============================== */
@@ -62,6 +77,20 @@ type Site struct {
 	built   time.Time
 }
 
+// authConfig is the resolved PUSTAKA_AUTH… environment. A nil *authConfig
+// means the feature is off, which is the only state the rest of the engine
+// has to know about.
+type authConfig struct {
+	User, Pass string
+	Secret     []byte
+	TTL        time.Duration
+	CookieName string
+	Secure     string // "auto" | "on" | "off"
+	// CredFP fingerprints the credential pair, so changing the user or the
+	// password invalidates every outstanding cookie without server state.
+	CredFP string
+}
+
 /* ============================== parsing ============================ */
 
 // The authoring spec mandates this key order in registry files —
@@ -90,6 +119,11 @@ var (
 	reHashtag    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	reMenuEntry  = regexp.MustCompile(`\{\s*id:\s*"([^"]+)"\s*,\s*title:\s*"[^"]+"\s*,\s*children:\s*\[`)
 	reEmptyMenu  = regexp.MustCompile(`children:\s*\[\s*\]`)
+	// site: { … } — matched non-greedily so it stops before the product block,
+	// whose own name: key would otherwise win.
+	reSiteBlock   = regexp.MustCompile(`(?s)site:\s*\{(.*?)\}`)
+	reSiteName    = regexp.MustCompile(`name:\s*"([^"]*)"`)
+	reSiteVersion = regexp.MustCompile(`version:\s*"([^"]*)"`)
 )
 
 // registryFiles returns toc.js plus, in order, the part files it lists.
@@ -126,6 +160,27 @@ func loadRegistry(root string) ([]Page, error) {
 		return nil, fmt.Errorf("no pages found in the registry (assets/toc.js + parts). Do entries follow the key order id, file, title, desc, tags?")
 	}
 	return pages, nil
+}
+
+// siteMeta reads window.DOCS.site.{name,version} from assets/toc.js so the
+// login page can name the site without loading the registry in the browser.
+func siteMeta(root string) (name, version string) {
+	name = productName
+	b, err := os.ReadFile(filepath.Join(root, "assets", "toc.js"))
+	if err != nil {
+		return name, ""
+	}
+	block := reSiteBlock.FindStringSubmatch(string(b))
+	if block == nil {
+		return name, ""
+	}
+	if m := reSiteName.FindStringSubmatch(block[1]); m != nil && m[1] != "" {
+		name = m[1]
+	}
+	if m := reSiteVersion.FindStringSubmatch(block[1]); m != nil {
+		version = m[1]
+	}
+	return name, version
 }
 
 func stripText(s string) string {
@@ -362,10 +417,15 @@ func gzipMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func jsonOut(w http.ResponseWriter, v any) {
+// jsonStatus writes v with an explicit status. Denials must use this: jsonOut
+// commits a 200 the moment it writes a header, and site.js only checks r.ok.
+func jsonStatus(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
+func jsonOut(w http.ResponseWriter, v any) { jsonStatus(w, http.StatusOK, v) }
 
 // safeJoin resolves a slash path under root, rejecting escapes.
 func safeJoin(root, rel string) (string, bool) {
@@ -384,11 +444,10 @@ func safeJoin(root, rel string) (string, bool) {
 	return full, true
 }
 
-func serve(root, addr string, dev bool) error {
-	site := &Site{root: root}
-	if err := site.rebuild(); err != nil {
-		return err
-	}
+// newHandler builds the complete route tree. Split out of serve so the
+// middleware matrix is testable with httptest, without binding a port.
+// A nil *auth means the login layer is absent, not merely disabled.
+func newHandler(site *Site, root string, dev bool, a *auth) http.Handler {
 	maybeRebuild := func() {
 		if dev && time.Since(site.built) > 500*time.Millisecond {
 			_ = site.rebuild()
@@ -398,14 +457,38 @@ func serve(root, addr string, dev bool) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(internalRoutePrefix+"/info", func(w http.ResponseWriter, r *http.Request) {
+		// Public, but payload-aware: page and record counts describe the size
+		// of a private site, so an anonymous caller does not get them.
+		if a != nil {
+			w.Header().Add("Vary", "Cookie")
+			if !a.authed(r) {
+				w.Header().Set("Cache-Control", "no-store")
+				jsonOut(w, map[string]any{"name": productName, "auth": map[string]any{
+					"enabled": true, "authenticated": false, "loginUrl": authRoutePrefix + "/login",
+				}})
+				return
+			}
+		}
 		maybeRebuild()
 		site.mu.RLock()
 		defer site.mu.RUnlock()
-		jsonOut(w, map[string]any{
+		out := map[string]any{
 			"name": productName, "pages": len(site.pages),
 			"records": len(site.records), "built": site.built, "dev": dev,
-		})
+		}
+		if a != nil {
+			out["auth"] = map[string]any{
+				"enabled": true, "authenticated": true, "user": a.cfg.User,
+				"loginUrl": authRoutePrefix + "/login", "logoutUrl": authRoutePrefix + "/logout",
+			}
+		}
+		jsonOut(w, out)
 	})
+
+	if a != nil {
+		mux.HandleFunc(authRoutePrefix+"/login", a.handleLogin)
+		mux.HandleFunc(authRoutePrefix+"/logout", a.handleLogout)
+	}
 
 	mux.HandleFunc(internalRoutePrefix+"/index.json", func(w http.ResponseWriter, r *http.Request) {
 		maybeRebuild()
@@ -483,19 +566,570 @@ func serve(root, addr string, dev bool) error {
 		}
 		defer f.Close()
 		fi, _ := f.Stat()
-		if strings.HasSuffix(full, ".html") {
+		switch {
+		case strings.HasSuffix(full, ".html"):
 			w.Header().Set("Cache-Control", "no-cache")
-		} else {
+		case a != nil:
+			// public would let a shared cache hand a guarded asset to an
+			// anonymous client; Vary: Cookie alone does not prevent that.
+			w.Header().Set("Cache-Control", "private, max-age=300")
+		default:
 			w.Header().Set("Cache-Control", "public, max-age=300")
 		}
 		http.ServeContent(w, r, full, fi.ModTime(), f)
 	})
 
+	var h http.Handler = gzipMiddleware(mux)
+	if a != nil {
+		// Auth wraps gzip so denials keep a real Content-Length and are not
+		// gzip-framed; the login page itself is on the mux, so it still is.
+		h = a.middleware(h)
+	}
+	return h
+}
+
+func serve(root, addr string, dev bool, a *auth) error {
+	site := &Site{root: root}
+	if err := site.rebuild(); err != nil {
+		return err
+	}
+	h := newHandler(site, root, dev, a)
 	site.mu.RLock()
 	fmt.Printf("pustaka: serving %d pages, %d search records from %s\n", len(site.pages), len(site.records), root)
 	site.mu.RUnlock()
 	fmt.Printf("pustaka: http://localhost%s  (dev=%v)\n", addr, dev)
-	return http.ListenAndServe(addr, gzipMiddleware(mux))
+	if a != nil {
+		fmt.Printf("pustaka: auth ON — user %q, sessions last %s, everything but the landing page is gated\n",
+			a.cfg.User, a.cfg.TTL)
+		if a.ephemeral {
+			fmt.Println("pustaka: PUSTAKA_AUTH_SECRET is unset — a random key was generated, so sessions end when this process does")
+		}
+	}
+	return http.ListenAndServe(addr, h)
+}
+
+/* ============================== auth ================================ */
+
+// The login layer is optional and off unless PUSTAKA_AUTH is set. It gates
+// everything except the landing page and assets/, which the landing page
+// needs. Sessions are a signed cookie, so the server keeps no state.
+//
+// The engine serves docs/_login.html; the underscore already makes that file
+// invisible to the registry, to `check`, and to the partial endpoint. The
+// same file is embedded as a fallback for a docs root that lacks it.
+//
+//go:embed docs/_login.html
+var embeddedLogin []byte
+
+const (
+	authCookieName    = "pustaka_session"
+	authMaxAttempts   = 5
+	authLockout       = time.Minute
+	authTokenMaxLen   = 512
+	authBodyMaxBytes  = 8 << 10
+	authThrottleSweep = 1024
+)
+
+type auth struct {
+	cfg       authConfig
+	root      string
+	dev       bool
+	ephemeral bool // secret was generated, not configured
+	thr       *throttle
+	siteName  string
+	siteVer   string
+
+	mu   sync.RWMutex
+	page []byte // cached login template, --prod only
+}
+
+// loadAuthConfig resolves the PUSTAKA_AUTH… environment. It returns
+// (nil, nil) when the feature is off — the caller treats that as "absent".
+// env is a parameter so tests never touch the process environment.
+func loadAuthConfig(env func(string) string) (*authConfig, bool, error) {
+	switch strings.ToLower(strings.TrimSpace(env("PUSTAKA_AUTH"))) {
+	case "1", "true", "yes", "on":
+	default:
+		return nil, false, nil
+	}
+	user, pass := env("PUSTAKA_AUTH_USER"), env("PUSTAKA_AUTH_PASS")
+	if user == "" {
+		return nil, false, fmt.Errorf("PUSTAKA_AUTH is on but PUSTAKA_AUTH_USER is empty — set a username or unset PUSTAKA_AUTH")
+	}
+	if pass == "" {
+		return nil, false, fmt.Errorf("PUSTAKA_AUTH is on but PUSTAKA_AUTH_PASS is empty — set a password or unset PUSTAKA_AUTH")
+	}
+	ttl := 12 * time.Hour
+	if raw := strings.TrimSpace(env("PUSTAKA_AUTH_TTL")); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil || d <= 0 {
+			return nil, false, fmt.Errorf("PUSTAKA_AUTH_TTL %q is not a positive Go duration (try 12h, 30m, 168h)", raw)
+		}
+		ttl = d
+	}
+	secure := strings.ToLower(strings.TrimSpace(env("PUSTAKA_AUTH_SECURE")))
+	switch secure {
+	case "", "auto":
+		secure = "auto"
+	case "1", "true", "yes", "on":
+		secure = "on"
+	case "0", "false", "no", "off":
+		secure = "off"
+	default:
+		return nil, false, fmt.Errorf("PUSTAKA_AUTH_SECURE %q must be auto, 1 or 0", secure)
+	}
+	secret, ephemeral := []byte(env("PUSTAKA_AUTH_SECRET")), false
+	if len(secret) == 0 {
+		secret = make([]byte, 32)
+		if _, err := rand.Read(secret); err != nil {
+			return nil, false, fmt.Errorf("cannot generate a session key: %w", err)
+		}
+		ephemeral = true
+	}
+	fp := sha256.Sum256([]byte(user + "\x00" + pass))
+	return &authConfig{
+		User: user, Pass: pass, Secret: secret, TTL: ttl,
+		CookieName: authCookieName, Secure: secure,
+		CredFP: hex.EncodeToString(fp[:])[:16],
+	}, ephemeral, nil
+}
+
+func newAuth(cfg *authConfig, root string, dev, ephemeral bool) *auth {
+	name, ver := siteMeta(root)
+	return &auth{cfg: *cfg, root: root, dev: dev, ephemeral: ephemeral,
+		thr: newThrottle(authMaxAttempts, authLockout), siteName: name, siteVer: ver}
+}
+
+/* ---------- session token ---------- */
+
+// sign builds "v1.<expiry>.<credFP>.<hmac>". The payload is fixed-shape, so
+// splitting on the last dot is unambiguous.
+func (a *auth) sign(now time.Time) string {
+	payload := "v1." + strconv.FormatInt(now.Add(a.cfg.TTL).Unix(), 10) + "." + a.cfg.CredFP
+	return payload + "." + base64.RawURLEncoding.EncodeToString(a.mac(payload))
+}
+
+func (a *auth) mac(payload string) []byte {
+	m := hmac.New(sha256.New, a.cfg.Secret)
+	m.Write([]byte(payload))
+	return m.Sum(nil)
+}
+
+// verify authenticates the signature BEFORE parsing anything, so no
+// attacker-shaped bytes ever reach the field logic.
+func (a *auth) verify(v string) bool {
+	if v == "" || len(v) > authTokenMaxLen {
+		return false
+	}
+	i := strings.LastIndexByte(v, '.')
+	if i < 0 {
+		return false
+	}
+	payload, raw := v[:i], v[i+1:]
+	sig, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil || !hmac.Equal(a.mac(payload), sig) {
+		return false
+	}
+	f := strings.Split(payload, ".")
+	if len(f) != 3 || f[0] != "v1" {
+		return false
+	}
+	exp, err := strconv.ParseInt(f[1], 10, 64)
+	if err != nil || time.Now().Unix() >= exp {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(f[2]), []byte(a.cfg.CredFP)) == 1
+}
+
+// creds compares hashes, not the raw strings: fixed-length operands keep
+// ConstantTimeCompare's length check from leaking the password length, and
+// & rather than && avoids leaking which of the two fields was wrong.
+func (a *auth) creds(user, pass string) bool {
+	gu, wu := sha256.Sum256([]byte(user)), sha256.Sum256([]byte(a.cfg.User))
+	gp, wp := sha256.Sum256([]byte(pass)), sha256.Sum256([]byte(a.cfg.Pass))
+	return subtle.ConstantTimeCompare(gu[:], wu[:])&subtle.ConstantTimeCompare(gp[:], wp[:]) == 1
+}
+
+/* ---------- cookie ---------- */
+
+func (a *auth) secure(r *http.Request) bool {
+	switch a.cfg.Secure {
+	case "on":
+		return true
+	case "off":
+		return false
+	}
+	return r.TLS != nil
+}
+
+func (a *auth) cookie(r *http.Request, value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name: a.cfg.CookieName, Value: value, Path: "/",
+		HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		Secure: a.secure(r), MaxAge: maxAge,
+	}
+}
+
+func (a *auth) setCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, a.cookie(r, a.sign(time.Now()), int(a.cfg.TTL/time.Second)))
+}
+
+// clearCookie must mirror the set attributes or the browser keeps the old one.
+func (a *auth) clearCookie(w http.ResponseWriter, r *http.Request) {
+	c := a.cookie(r, "", -1)
+	c.Expires = time.Unix(0, 0)
+	http.SetCookie(w, c)
+}
+
+func (a *auth) authed(r *http.Request) bool {
+	c, err := r.Cookie(a.cfg.CookieName)
+	return err == nil && a.verify(c.Value)
+}
+
+/* ---------- middleware ---------- */
+
+// normPath collapses .. and duplicate slashes. net/http has already
+// percent-decoded the path, so /assets/%2e%2e/guide/x.html arrives here as
+// /assets/../guide/x.html — classifying without this is an allowlist bypass.
+func normPath(p string) string {
+	if p == "" {
+		return "/"
+	}
+	return path.Clean("/" + p)
+}
+
+// isPublic is the allowlist: the landing page, the assets it needs, the login
+// routes, and /info. Everything else is default-deny.
+func isPublic(p string) bool {
+	switch p {
+	case "/", "/index.html", "/robots.txt", "/favicon.ico", internalRoutePrefix + "/info":
+		return true
+	}
+	return p == "/assets" || strings.HasPrefix(p, "/assets/") ||
+		p == authRoutePrefix || strings.HasPrefix(p, authRoutePrefix+"/")
+}
+
+// wantsHTMLNav distinguishes a browser navigation (redirect to the login page)
+// from a fetch or subresource (401 JSON).
+func wantsHTMLNav(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false // a 302 would silently downgrade the method
+	}
+	switch r.Header.Get("Sec-Fetch-Dest") {
+	case "document", "iframe", "frame":
+		return true
+	case "":
+		return strings.Contains(r.Header.Get("Accept"), "text/html")
+	}
+	return false
+}
+
+func (a *auth) middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isPublic(normPath(r.URL.Path)) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Add("Vary", "Cookie")
+		if a.authed(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// The check runs before any os.Stat, so a guarded 404 and a guarded
+		// 200 look identical to an anonymous client.
+		w.Header().Set("Cache-Control", "no-store")
+		if wantsHTMLNav(r) {
+			http.Redirect(w, r, a.loginURL(r), http.StatusFound)
+			return
+		}
+		// site.js treats any non-2xx from /partial/ as "do a full page load",
+		// which this middleware then answers with the redirect above.
+		jsonStatus(w, http.StatusUnauthorized, map[string]any{
+			"error": "unauthorized", "login": authRoutePrefix + "/login",
+		})
+	})
+}
+
+func (a *auth) loginURL(r *http.Request) string {
+	q := url.Values{}
+	if next := safeNext(r.URL.RequestURI()); next != "/" {
+		q.Set("next", next)
+	}
+	if len(q) == 0 {
+		return authRoutePrefix + "/login"
+	}
+	return authRoutePrefix + "/login?" + q.Encode()
+}
+
+// safeNext reduces raw to a same-site absolute path, or "/" when it cannot.
+// It is applied when the link is built, when the POST arrives, and again
+// before redirecting — validating only at the first is the classic hole.
+func safeNext(raw string) string {
+	const fallback = "/"
+	if raw == "" || len(raw) > 512 || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+		return fallback
+	}
+	for _, c := range []byte(raw) {
+		// backslash because browsers fold /\evil.com into //evil.com;
+		// control bytes because they are Location header injection.
+		if c == '\\' || c < 0x20 || c == 0x7f {
+			return fallback
+		}
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Opaque != "" {
+		return fallback
+	}
+	p := path.Clean("/" + strings.TrimPrefix(u.Path, "/"))
+	if p == authRoutePrefix || strings.HasPrefix(p, authRoutePrefix+"/") {
+		return fallback // never bounce login → login
+	}
+	out := p
+	if u.RawQuery != "" {
+		out += "?" + u.RawQuery
+	}
+	if f := u.EscapedFragment(); f != "" {
+		out += "#" + f
+	}
+	return out
+}
+
+/* ---------- login page ---------- */
+
+// template prefers the on-disk page so it can be restyled without a rebuild,
+// and mirrors the dev/--prod split the index already uses.
+func (a *auth) template() []byte {
+	read := func() []byte {
+		if b, err := os.ReadFile(filepath.Join(a.root, "_login.html")); err == nil {
+			return b
+		}
+		return embeddedLogin
+	}
+	if a.dev {
+		return read()
+	}
+	a.mu.RLock()
+	p := a.page
+	a.mu.RUnlock()
+	if p != nil {
+		return p
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.page == nil {
+		a.page = read()
+	}
+	return a.page
+}
+
+// renderLogin substitutes the sentinels. Every value is escaped: next and
+// errMsg are attacker-influenced and land inside value="…" attributes.
+func (a *auth) renderLogin(w http.ResponseWriter, code int, next, errMsg string, retry int) {
+	rep := strings.NewReplacer(
+		"{{SITE_NAME}}", html.EscapeString(a.siteName),
+		"{{SITE_VERSION}}", html.EscapeString(a.siteVer),
+		// the page is served from a two-segment path, so relative asset
+		// links would resolve under /__pustaka/auth/.
+		"{{BASE}}", "/",
+		"{{ACTION}}", authRoutePrefix+"/login",
+		"{{NEXT}}", html.EscapeString(next),
+		"{{ERROR}}", html.EscapeString(errMsg),
+		"{{RETRY_AFTER}}", strconv.Itoa(retry),
+	)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(code)
+	_, _ = io.WriteString(w, rep.Replace(string(a.template())))
+}
+
+/* ---------- handlers ---------- */
+
+func (a *auth) handleLogin(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		next := safeNext(r.URL.Query().Get("next"))
+		if a.authed(r) {
+			http.Redirect(w, r, next, http.StatusSeeOther)
+			return
+		}
+		a.renderLogin(w, http.StatusOK, next, "", 0)
+	case http.MethodPost:
+		a.handleLoginPost(w, r)
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *auth) handleLoginPost(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, authBodyMaxBytes)
+	asJSON := strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
+
+	// Cheap, stateless login-CSRF mitigation alongside SameSite=Lax.
+	if o := r.Header.Get("Origin"); o != "" && !sameOrigin(o, r.Host) {
+		http.Error(w, "cross-site request rejected", http.StatusForbidden)
+		return
+	}
+
+	var user, pass, next string
+	if asJSON {
+		var body struct{ User, Pass, Next string }
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			jsonStatus(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Malformed request."})
+			return
+		}
+		user, pass, next = body.User, body.Pass, body.Next
+	} else {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "malformed form", http.StatusBadRequest)
+			return
+		}
+		user, pass, next = r.PostFormValue("user"), r.PostFormValue("pass"), r.PostFormValue("next")
+	}
+	next = safeNext(next)
+
+	ip := clientIP(r)
+	if wait, ok := a.thr.allow(ip); !ok {
+		secs := int(wait.Seconds()) + 1
+		w.Header().Set("Retry-After", strconv.Itoa(secs))
+		msg := fmt.Sprintf("Too many attempts. Try again in %d seconds.", secs)
+		if asJSON {
+			jsonStatus(w, http.StatusTooManyRequests,
+				map[string]any{"ok": false, "error": msg, "retryAfter": secs})
+			return
+		}
+		a.renderLogin(w, http.StatusTooManyRequests, next, msg, secs)
+		return
+	}
+
+	if !a.creds(user, pass) {
+		left, wait := a.thr.fail(ip)
+		msg := "Incorrect username or password."
+		secs := 0
+		if left <= 0 {
+			secs = int(wait.Seconds()) + 1
+			msg = fmt.Sprintf("Too many attempts. Try again in %d seconds.", secs)
+		}
+		if asJSON {
+			jsonStatus(w, http.StatusUnauthorized,
+				map[string]any{"ok": false, "error": msg, "attemptsLeft": left, "retryAfter": secs})
+			return
+		}
+		a.renderLogin(w, http.StatusUnauthorized, next, msg, secs)
+		return
+	}
+
+	a.thr.reset(ip)
+	a.setCookie(w, r)
+	if asJSON {
+		jsonOut(w, map[string]any{"ok": true, "next": next})
+		return
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther) // 303: POST → GET
+}
+
+func (a *auth) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	a.clearCookie(w, r)
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		jsonOut(w, map[string]any{"ok": true})
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func sameOrigin(origin, host string) bool {
+	u, err := url.Parse(origin)
+	return err == nil && u.Host == host
+}
+
+// clientIP deliberately ignores X-Forwarded-For: honouring it lets an attacker
+// rotate the header to escape throttling and to lock out a victim's address.
+func clientIP(r *http.Request) string {
+	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return h
+	}
+	return r.RemoteAddr
+}
+
+/* ---------- brute-force throttle ---------- */
+
+type attempts struct {
+	n     int
+	until time.Time
+	seen  time.Time
+}
+
+type throttle struct {
+	mu      sync.Mutex
+	max     int
+	lockout time.Duration
+	now     func() time.Time // injectable so lockout is testable
+	m       map[string]*attempts
+}
+
+func newThrottle(max int, lockout time.Duration) *throttle {
+	return &throttle{max: max, lockout: lockout, now: time.Now, m: map[string]*attempts{}}
+}
+
+// allow reports whether ip may try again, and how long is left if not.
+func (t *throttle) allow(ip string) (time.Duration, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	now := t.now()
+	e := t.m[ip]
+	if e == nil {
+		return 0, true
+	}
+	e.seen = now
+	if now.Before(e.until) {
+		return e.until.Sub(now), false
+	}
+	return 0, true
+}
+
+// fail records a failure and returns the attempts left before lockout.
+func (t *throttle) fail(ip string) (left int, retryAfter time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	now := t.now()
+	t.sweep(now)
+	e := t.m[ip]
+	if e == nil {
+		e = &attempts{}
+		t.m[ip] = e
+	}
+	e.seen = now
+	e.n++
+	if e.n >= t.max {
+		e.n = 0
+		e.until = now.Add(t.lockout)
+		return 0, t.lockout
+	}
+	return t.max - e.n, 0
+}
+
+func (t *throttle) reset(ip string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.m, ip)
+}
+
+// sweep keeps the map from growing one permanent entry per source address.
+func (t *throttle) sweep(now time.Time) {
+	if len(t.m) < authThrottleSweep {
+		return
+	}
+	cutoff := now.Add(-2 * t.lockout)
+	for ip, e := range t.m {
+		if e.seen.Before(cutoff) && e.until.Before(now) {
+			delete(t.m, ip)
+		}
+	}
 }
 
 /* ============================== check =============================== */
@@ -814,7 +1448,16 @@ func main() {
 
 	switch cmd {
 	case "serve":
-		if err := serve(dir, *addr, !*prod); err != nil {
+		cfg, ephemeral, err := loadAuthConfig(os.Getenv)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "pustaka:", err)
+			os.Exit(1)
+		}
+		var a *auth
+		if cfg != nil {
+			a = newAuth(cfg, dir, !*prod, ephemeral)
+		}
+		if err := serve(dir, *addr, !*prod, a); err != nil {
 			fmt.Fprintln(os.Stderr, "pustaka:", err)
 			os.Exit(1)
 		}

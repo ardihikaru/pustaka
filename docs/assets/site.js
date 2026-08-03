@@ -128,7 +128,9 @@
     sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8"/></svg>',
     moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="17"><path d="M12 19V6M6 12l6-6 6 6"/></svg>',
-    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>'
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    signOut: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5H6.8A1.8 1.8 0 0 0 5 6.3v11.4a1.8 1.8 0 0 0 1.8 1.8h7.7"/><path d="M18.5 12H10m8.5 0-3-3m3 3-3 3"/></svg>',
+    signIn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4.5h7.7A1.8 1.8 0 0 1 19 6.3v11.4a1.8 1.8 0 0 1-1.8 1.8H9.5"/><path d="M5.5 12H14M5.5 12l3-3m-3 3 3 3"/></svg>'
   };
 
   /* ============================================================
@@ -595,9 +597,32 @@
     addEventListener("popstate", () => swap(location.href, false));
   }
 
+  /* Optional login layer. /info reports it; when auth is off the key is
+     absent and no control is injected at all. */
+  const paintAuth = (info) => {
+    if (!info || !info.enabled || header.querySelector(".auth-ctl")) return;
+    const node = info.authenticated
+      ? el(`<form class="auth-ctl" method="post" action="${SVR}/auth/logout">
+             <button class="icon-btn" type="submit" title="Sign out${info.user ? " (" + esc(info.user) + ")" : ""}"
+                     aria-label="Sign out">${I.signOut}</button>
+           </form>`)
+      : el(`<a class="icon-btn auth-ctl" href="${SVR}/auth/login?next=${
+             encodeURIComponent(location.pathname + location.search)}"
+             title="Sign in" aria-label="Sign in">${I.signIn}</a>`);
+    header.insertBefore(node, themeBtn);
+  };
+
   fetch(`${SVR}/info`, { cache: "no-store" })
     .then(r => (r.ok ? r.json() : Promise.reject()))
-    .then(() => enableServerMode())
+    .then(info => {
+      const auth = info && info.auth;
+      /* A signed-out visitor can only reach the landing page, and every
+         content endpoint would answer 401. Staying in static mode keeps the
+         page working off the local index with no failed requests: links do
+         plain navigations, which the server redirects to the login page. */
+      if (!auth || auth.authenticated) enableServerMode();
+      paintAuth(auth);
+    })
     .catch(() => { /* static mode — everything already works */ });
 
   /* Page scripts live inside <main>, so on a normal page load they run

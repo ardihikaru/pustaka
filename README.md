@@ -1,4 +1,4 @@
-# Pustaka — HTML-first documentation framework (v0.6.0)
+# Pustaka — HTML-first documentation framework (v0.7.0)
 
 Pustaka is an open-source, HTML-first documentation framework designed for
 humans and AI agents. It enables interactive documentation that agents can
@@ -44,8 +44,10 @@ pustaka/
 │   │   ├── performance.html   ← measured numbers, reproducible
 │   │   └── faq.html           ← authored via the AI loop
 │   ├── _template.html         Canonical skeleton (underscore = ignored)
+│   ├── _login.html            Optional login page — engine-served, editable
 │   └── assets/
 │       ├── fonts.css + fonts/ Self-hosted typefaces (woff2, latin)
+│       ├── login.css          Styles for the login page only
 │       ├── vendor/            ECharts + generic Sisflow workbench/viewer, all offline
 │       ├── img/               Real device screenshots for the landing page
 │       ├── toc.js             Parent registry: site + product meta, parts list
@@ -79,6 +81,8 @@ go build -o pustaka .                        # one ~8 MB static binary
 ./pustaka serve ./docs --addr :3000 --prod   # cache instead of live rebuild
 ./pustaka check ./docs                       # validate against the spec
 ./pustaka index ./docs                       # print the generated search index
+PUSTAKA_AUTH=1 PUSTAKA_AUTH_USER=admin \
+  PUSTAKA_AUTH_PASS=secret ./pustaka serve ./docs   # gate it behind a login
 ```
 
 Served pages auto-upgrade: the search index is generated from the real page
@@ -196,6 +200,87 @@ else document.addEventListener("pustaka:ready", e => start(e.detail), { once: tr
 `check` with three violations; second passed), and
 `docs/guide/deploy/production.html` came from `pustaka new`.
 
+## Login (optional)
+
+A Pustaka site is public by default. Set `PUSTAKA_AUTH` and `serve` puts one
+shared credential in front of everything except the landing page:
+
+```bash
+PUSTAKA_AUTH=1 \
+PUSTAKA_AUTH_USER=admin \
+PUSTAKA_AUTH_PASS='a-long-passphrase' \
+PUSTAKA_AUTH_SECRET="$(openssl rand -hex 32)" \
+  ./pustaka serve ./docs
+```
+
+Unset `PUSTAKA_AUTH` (or set it to `0`) and the login layer disappears
+completely — the routes are not even registered and `/__pustaka/info` returns
+exactly what it returned before. Turning it on and off again is a restart, not
+an edit.
+
+### Environment variables
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PUSTAKA_AUTH` | *unset* | `1`, `true`, `yes` or `on` enables the login page. Anything else disables it |
+| `PUSTAKA_AUTH_USER` | — | The username. Required when enabled |
+| `PUSTAKA_AUTH_PASS` | — | The password. Required when enabled |
+| `PUSTAKA_AUTH_SECRET` | random | Key that signs the session cookie. Leave it unset and a random one is generated, which logs everyone out on restart |
+| `PUSTAKA_AUTH_TTL` | `12h` | How long a session lasts, as a Go duration (`30m`, `12h`, `168h`) |
+| `PUSTAKA_AUTH_SECURE` | `auto` | `1` marks the cookie Secure, `0` never does, `auto` follows the connection. **Set it to `1` in production** — the engine speaks plain HTTP, so behind a TLS-terminating proxy `auto` cannot tell |
+
+Enabling auth without a username or password is a startup error, not a silent
+open door. Five failed attempts from one address lock it out for a minute.
+
+### What is public and what is not
+
+Public so the landing page still renders for a visitor who has not signed in:
+`/`, `/index.html`, everything under `/assets/`, the login routes, and
+`/__pustaka/info` (which reports only that auth is on).
+
+Guarded: every other page, `/__pustaka/partial/…`, `/index.json` and `/search`.
+Because the check runs before the file is looked up, a page that does not exist
+and a page that does look identical to a signed-out visitor. Note the
+consequence of keeping `assets/` public: `assets/toc.js` lists page titles and
+descriptions, so those are readable by anyone. Page *content* is not.
+
+Navigation degrades gracefully. For a signed-out visitor the runtime stays in
+static mode, so a click on a docs link is a plain navigation, and the server
+answers it with a redirect to the login page carrying `?next=`. Signing in
+returns you there. If a session expires mid-visit the partial endpoint answers
+401, which the runtime already treats as "do a full page load" — same
+destination, one extra round trip.
+
+### The login page
+
+`docs/_login.html` is a real file you can edit — the underscore keeps it
+invisible to the ToC, to `pustaka check`, and to the partial endpoint. It is
+served at `/__pustaka/auth/login` with `{{SITE_NAME}}`, `{{SITE_VERSION}}`,
+`{{BASE}}`, `{{ACTION}}`, `{{NEXT}}`, `{{ERROR}}` and `{{RETRY_AFTER}}`
+substituted. In dev mode it is re-read per request, so restyling it needs only
+a refresh; `--prod` caches it. A copy is compiled into the binary, so a docs
+root without the file still gets a working login page.
+
+It deliberately does not load `toc.js` or `site.js`: a locked site should not
+hand its table of contents to someone who has not signed in. It borrows the
+landing page's atmosphere instead — the constellation canvas, layered
+gradients, engraved grid and pointer spotlight — plus a password reveal, Caps
+Lock warning, a submit button that shows progress, and a lockout countdown.
+Without JavaScript the plain form still works.
+
+Once signed in, a sign-out button appears in the header next to the theme
+toggle.
+
+### Caveats
+
+- **Static mode has no protection at all.** Opening `docs/index.html` from disk,
+  or serving `docs/` with any other web server, bypasses this entirely — the
+  gate lives in the Go engine. Do not treat the folder itself as private.
+- One shared credential, not user accounts. It keeps a documentation site off
+  the open web; it is not an identity system.
+- Put it behind HTTPS. A password over plain HTTP is readable in transit no
+  matter how the cookie is signed.
+
 ## Contributing
 
 **`main` is protected by convention: every change lands through a pull
@@ -246,9 +331,13 @@ Verified in a **real browser** (headless Chromium via Playwright), not only
 jsdom — jsdom has no layout engine, which is exactly why the filter, mockup and
 chart bugs fixed in v0.5 went unnoticed earlier.
 
-`go test ./...` covers the checker's page-metadata contract and version-bound
-parsing. Beyond that: `check` (21 pages incl. depth-2, registry consistency,
-prefix + link resolution) · generated index (136 records incl. per-release anchors) ·
+`go test ./...` covers the checker's page-metadata contract, version-bound
+parsing, and the whole login layer: config loading, session signing (tamper,
+expiry, credential rotation), the redirect-vs-401 matrix, allowlist traversal,
+open-redirect rejection, lockout, placeholder escaping, and a zero-diff
+assertion for the disabled path. Beyond that: `check` (21 pages incl. depth-2,
+registry consistency,
+prefix + link resolution) · generated index (137 records incl. per-release anchors) ·
 server endpoints for nested paths, gzip integrity, traversal guard, live
 dev rebuild · `new` scaffolding at depth 2 · jsdom smoke tests in static,
 server, and reduced-motion modes: shell, search overlay, embedded search

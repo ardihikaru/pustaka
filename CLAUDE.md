@@ -11,7 +11,7 @@ dependencies. Never add one.
 
 **One repo = one product.** `docs/` is that product's documentation,
 `docs/changelog.html` its release history, and `product.semver` in
-`docs/assets/toc.js` its current version (currently `0.6.0`).
+`docs/assets/toc.js` its current version (currently `0.7.0`).
 
 ## Layout
 
@@ -49,7 +49,7 @@ go test ./...                    # Go unit tests
 ```
 
 Current baseline: `check` reports `✓ 21 pages valid, registry consistent`;
-`index` emits 136 records. If your change moves those numbers, that is expected —
+`index` emits 137 records. If your change moves those numbers, that is expected —
 if it makes `check` fail, the change is not done.
 
 Pages also work with zero install: opening `docs/index.html` over `file://`
@@ -173,6 +173,32 @@ When changing `check` behavior, add a case to `TestCheckPageMetadata` in
 `main_test.go` — it drives `check()` over a temp-dir fixture, which is the
 cheapest way to test a new rule.
 
+## Auth (optional login layer)
+
+Off unless `PUSTAKA_AUTH` is set. Lives in the `auth` banner section of
+`main.go`; env vars are `PUSTAKA_AUTH`, `_USER`, `_PASS`, `_SECRET`, `_TTL`,
+`_SECURE`. Sessions are a stateless HMAC-signed cookie whose payload includes a
+fingerprint of the credential pair, so changing the user or password invalidates
+outstanding cookies.
+
+Rules to preserve when touching it:
+
+- **`a == nil` must stay zero-diff.** When auth is off the routes are never
+  registered and `/__pustaka/info` returns byte-identical JSON to before.
+  `TestAuthDisabledPassthrough` pins this.
+- The middleware wraps `gzipMiddleware`, not the other way round, and classifies
+  on `normPath()` — a raw `r.URL.Path` comparison is an allowlist bypass because
+  `net/http` has already percent-decoded it.
+- Guarded requests answer 302-to-login for browser navigations and 401 JSON for
+  everything else. Never redirect a non-GET. Denials use `jsonStatus`, not
+  `jsonOut` — the latter always commits a 200.
+- `safeNext` runs at all three points: link build, POST parse, final redirect.
+- The design leans on `_`-prefixed files being invisible to the engine;
+  `TestCheckIgnoresLoginPage` guards that contract.
+- `docs/_login.html` is both the served page and the `go:embed` fallback, so
+  `go build` depends on it existing. It must not load `toc.js`/`site.js` — that
+  would leak the table of contents to a signed-out visitor.
+
 ## Changelog and versioning
 
 A release is **one** change: prepend a `.rel` section to the top of `.clog` in
@@ -182,7 +208,7 @@ releases are searchable and deep-linkable. SemVer rules: major = forks/pages mus
 change to keep working; minor = new backwards-compatible capability; patch =
 fixes only.
 
-Keep the `site.version` field in `toc.js` (`v0.6.0`) in sync with
+Keep the `site.version` field in `toc.js` (`v0.7.0`) in sync with
 `product.semver`, and update `ai/AUTHORING_SPEC.md`'s version header when the
 contract itself changes.
 

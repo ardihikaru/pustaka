@@ -36,6 +36,17 @@
   <div class="clog">
 
     <section class="rel rv">
+      <h3 id="v0-7-0">v0.7.0 <time datetime="2026-08-03">2026-08-03</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> Optional login layer for <code>pustaka serve</code>, enabled by <code>PUSTAKA_AUTH</code> with a single central credential in the environment. Sessions are a stateless HMAC-signed HttpOnly cookie whose payload fingerprints the credential pair, so changing the username or password invalidates outstanding sessions. Unset the variable and the layer disappears completely—routes are never registered and the info endpoint is unchanged.</li>
+        <li><span class="chg add">Added</span> An animated login page at <code>docs/_login.html</code>, served by the engine and editable in place, with a compiled-in fallback. It reuses the landing page's atmosphere—constellation canvas, layered gradients, engraved grid, pointer spotlight—and adds a password reveal, Caps Lock warning, progress and lockout states. It loads neither the registry nor the runtime, so a locked site does not hand out its table of contents.</li>
+        <li><span class="chg add">Added</span> A sign-out control in the header, injected only when the server reports that auth is on.</li>
+        <li><span class="chg change">Changed</span> The landing page and <code>assets/</code> stay public when auth is on, so the site still has a front door. Everything else—pages, partials, the generated index and search—requires a session, and the check runs before the file is looked up so missing and existing pages are indistinguishable to a signed-out visitor.</li>
+        <li><span class="chg change">Changed</span> Route construction moved into a testable handler builder, and JSON responses can now carry a real status code instead of always committing 200.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
       <h3 id="v0-6-0">v0.6.0 <time datetime="2026-07-31">2026-07-31</time> <span class="bump minor">minor</span></h3>
       <ul>
         <li><span class="chg add">Added</span> Optional declarative page metadata for display tags, hashtags, publication and update dates, and open or bounded SemVer applicability. The checker validates the complete contract when it is used.</li>

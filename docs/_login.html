@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Sign in — {{SITE_NAME}}</title>
+<!-- The engine serves this file at /__pustaka/auth/login and rewrites {{BASE}}
+     to the docs root. It is standalone on purpose: it never loads toc.js or
+     site.js, so a locked site does not leak its page titles to a visitor who
+     has not signed in yet. Underscore prefix = invisible to the ToC, to
+     `pustaka check`, and to the partial endpoint. -->
+<script>
+  /* apply the saved theme before first paint — shared key with site.js */
+  try {
+    var t = localStorage.getItem("pustaka-theme");
+    document.documentElement.dataset.theme =
+      t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="{{BASE}}assets/fonts.css">
+<link rel="stylesheet" href="{{BASE}}assets/site.css">
+<link rel="stylesheet" href="{{BASE}}assets/login.css">
+</head>
+<body>
+
+<div class="lg-stage" id="lg-stage">
+  <canvas class="lp-network" id="lg-network" aria-hidden="true"></canvas>
+
+  <button class="icon-btn lg-theme" id="lg-theme" type="button" aria-label="Toggle color theme"></button>
+
+  <div class="lg-wrap">
+
+    <section class="lg-pitch">
+      <p class="lg-kicker rv lg-stag" style="--i:0"><span class="dot"></span>{{SITE_NAME}} {{SITE_VERSION}}</p>
+      <h1 class="rv lg-stag" style="--i:1">Sign in to the <span class="hl">documentation</span></h1>
+      <p class="lg-sub rv lg-stag" style="--i:2">This site is private. The landing page stays public;
+        every guide, concept and sample page needs a session.</p>
+
+      <div class="lp-term lg-term rv lg-stag" style="--i:3" aria-hidden="true">
+        <div class="tb"><i></i><i></i><i></i><span>pustaka</span></div>
+        <pre id="lg-tty"></pre>
+      </div>
+
+      <ul class="lg-facts rv lg-stag" style="--i:4">
+        <li><b>HMAC</b> signed session</li>
+        <li><b>HttpOnly</b> cookie</li>
+        <li><b>0</b> dependencies</li>
+      </ul>
+    </section>
+
+    <section class="lg-card rv lg-stag" id="lg-card" style="--i:2">
+      <h2>Welcome back</h2>
+      <p class="lg-hint">Enter the shared credentials for this documentation site.</p>
+
+      <p class="lg-alert" id="lg-alert" data-error="{{ERROR}}" data-retry="{{RETRY_AFTER}}" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.2v.4"/></svg>
+        <span id="lg-msg">{{ERROR}}</span>
+      </p>
+
+      <form id="lg-form" method="post" action="{{ACTION}}" novalidate>
+        <input type="hidden" name="next" id="lg-next" value="{{NEXT}}">
+
+        <div class="lg-row">
+          <label class="lg-label" for="lg-user">Username</label>
+          <div class="lg-field" id="lg-field-user">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/></svg>
+            <input id="lg-user" name="user" type="text" autocomplete="username"
+                   autocapitalize="none" spellcheck="false" placeholder="username"
+                   required autofocus aria-describedby="lg-msg">
+          </div>
+        </div>
+
+        <div class="lg-row">
+          <label class="lg-label" for="lg-pass">Password</label>
+          <div class="lg-field" id="lg-field-pass">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <rect x="4.5" y="10.5" width="15" height="9.5" rx="2.2"/><path d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7"/></svg>
+            <input id="lg-pass" name="pass" type="password" autocomplete="current-password"
+                   placeholder="••••••••" required aria-describedby="lg-msg">
+            <button class="lg-peek" id="lg-peek" type="button" aria-label="Show password" aria-pressed="false"></button>
+          </div>
+          <p class="lg-caps" id="lg-caps" aria-live="polite">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round"><path d="m6 11 6-6 6 6"/><path d="M9 19h6"/></svg>
+            Caps Lock is on
+          </p>
+        </div>
+
+        <button class="btn primary lg-submit" id="lg-submit" type="submit">
+          <span id="lg-submit-label">Sign in</span>
+        </button>
+      </form>
+
+      <p class="lg-foot">
+        <span>Session ends on sign out</span>
+        <a href="{{BASE}}">← Back to the landing page</a>
+      </p>
+    </section>
+
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Login page runtime. Standalone: site.js is deliberately not
+   loaded here, so this file owns its own theme toggle, reveal
+   and atmosphere. Every effect is gated on reduced motion.
+   ============================================================ */
+(function () {
+  "use strict";
+  var doc = document;
+  var root = doc.documentElement;
+  var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var finePointer = matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+  /* ---------- theme (same storage key as site.js) ---------- */
+  var ICON = {
+    sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.4M12 19v2.4M2.6 12h2.4M19 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M18.8 5.2l-1.7 1.7M6.9 17.1l-1.7 1.7"/></svg>',
+    moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 13.5A8.2 8.2 0 0 1 10.5 4a8.4 8.4 0 1 0 9.5 9.5Z"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2.6 12S6.2 5.8 12 5.8 21.4 12 21.4 12 17.8 18.2 12 18.2 2.6 12 2.6 12Z"/><circle cx="12" cy="12" r="2.9"/></svg>',
+    eyeOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9.6 5.6A9.6 9.6 0 0 1 12 5.8c5.8 0 9.4 6.2 9.4 6.2a17 17 0 0 1-3.2 3.9"/><path d="M6.3 7.4A16.7 16.7 0 0 0 2.6 12S6.2 18.2 12 18.2a9.4 9.4 0 0 0 3.6-.7"/><path d="M4 4l16 16"/></svg>',
+    check: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>'
+  };
+
+  var themeBtn = doc.getElementById("lg-theme");
+  var paintTheme = function () {
+    themeBtn.innerHTML = root.dataset.theme === "dark" ? ICON.sun : ICON.moon;
+  };
+  paintTheme();
+  themeBtn.addEventListener("click", function () {
+    root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+    try { localStorage.setItem("pustaka-theme", root.dataset.theme); } catch (e) {}
+    paintTheme();
+    /* same event site.js dispatches, so the canvas re-reads its palette */
+    doc.dispatchEvent(new CustomEvent("pustaka:theme", { detail: root.dataset.theme }));
+  });
+
+  /* ---------- entrance reveal ---------- */
+  requestAnimationFrame(function () {
+    doc.querySelectorAll(".rv").forEach(function (n) { n.classList.add("in"); });
+  });
+
+  /* ---------- pointer-reactive constellation (ported from the landing hero) ---------- */
+  (function () {
+    var stage = doc.getElementById("lg-stage");
+    var canvas = doc.getElementById("lg-network");
+    var ctx = canvas && canvas.getContext ? canvas.getContext("2d") : null;
+    if (!stage || !ctx) return;
+
+    var width = 0, height = 0, dpr = 1, nodes = [], frame = 0, palette = {};
+    var pointer = { x: -1000, y: -1000, active: false };
+    var cssValue = function (n) { return getComputedStyle(root).getPropertyValue(n).trim(); };
+
+    function readPalette() {
+      palette = { node: cssValue("--network-node"), edge: cssValue("--network-edge"), glow: cssValue("--network-glow") };
+      if (reduced) draw(false);
+    }
+    function makeNodes() {
+      var count = Math.max(18, Math.min(62, Math.round(width * height / 18000)));
+      nodes = Array.from({ length: count }, function () {
+        return {
+          x: Math.random() * width, y: Math.random() * height,
+          vx: (Math.random() - .5) * .28, vy: (Math.random() - .5) * .28,
+          r: 1.2 + Math.random() * 1.8, phase: Math.random() * Math.PI * 2
+        };
+      });
+    }
+    function resize() {
+      var rect = stage.getBoundingClientRect();
+      width = Math.max(1, rect.width);
+      height = Math.max(1, rect.height);
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      makeNodes();
+      if (reduced) draw(false);
+    }
+    function draw(move) {
+      if (!width || !height) return;
+      ctx.clearRect(0, 0, width, height);
+      var connect = Math.max(104, Math.min(168, width * .14));
+      var i, j, node;
+      if (move) {
+        for (i = 0; i < nodes.length; i++) {
+          node = nodes[i];
+          node.x += node.vx; node.y += node.vy; node.phase += .018;
+          if (pointer.active) {
+            var dx = node.x - pointer.x, dy = node.y - pointer.y;
+            var dist = Math.hypot(dx, dy);
+            if (dist > 0 && dist < 145) {
+              var force = (145 - dist) / 145 * .045;
+              node.vx += dx / dist * force;
+              node.vy += dy / dist * force;
+            }
+          }
+          node.vx *= .997; node.vy *= .997;
+          var speed = Math.hypot(node.vx, node.vy);
+          if (speed > .75) { node.vx = node.vx / speed * .75; node.vy = node.vy / speed * .75; }
+          if (node.x < -8 || node.x > width + 8) node.vx *= -1;
+          if (node.y < -8 || node.y > height + 8) node.vy *= -1;
+          node.x = Math.max(-8, Math.min(width + 8, node.x));
+          node.y = Math.max(-8, Math.min(height + 8, node.y));
+        }
+      }
+      ctx.strokeStyle = palette.edge;
+      ctx.lineWidth = 1;
+      for (i = 0; i < nodes.length; i++) {
+        for (j = i + 1; j < nodes.length; j++) {
+          var d = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+          if (d >= connect) continue;
+          ctx.globalAlpha = (1 - d / connect) * .34;
+          ctx.beginPath();
+          ctx.moveTo(nodes[i].x, nodes[i].y);
+          ctx.lineTo(nodes[j].x, nodes[j].y);
+          ctx.stroke();
+        }
+      }
+      for (i = 0; i < nodes.length; i++) {
+        node = nodes[i];
+        var puls = move ? Math.sin(node.phase) * .45 : 0;
+        ctx.globalAlpha = .16;
+        ctx.fillStyle = palette.glow;
+        ctx.beginPath(); ctx.arc(node.x, node.y, node.r + 5 + puls, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = .62;
+        ctx.fillStyle = palette.node;
+        ctx.beginPath(); ctx.arc(node.x, node.y, Math.max(.8, node.r + puls), 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    function loop() {
+      if (doc.hidden) return;
+      draw(true);
+      frame = requestAnimationFrame(loop);
+    }
+    function syncLoop() {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      if (!reduced && !doc.hidden) loop();
+    }
+
+    new ResizeObserver(resize).observe(stage);
+    readPalette();
+    doc.addEventListener("visibilitychange", syncLoop);
+    doc.addEventListener("pustaka:theme", readPalette);
+
+    if (finePointer && !reduced) {
+      stage.addEventListener("pointermove", function (e) {
+        var rect = stage.getBoundingClientRect();
+        pointer.x = e.clientX - rect.left;
+        pointer.y = e.clientY - rect.top;
+        pointer.active = true;
+        stage.style.setProperty("--hero-x", pointer.x + "px");
+        stage.style.setProperty("--hero-y", pointer.y + "px");
+      }, { passive: true });
+      stage.addEventListener("pointerleave", function () {
+        pointer.active = false;
+        stage.style.removeProperty("--hero-x");
+        stage.style.removeProperty("--hero-y");
+      });
+
+      /* the same spotlight the landing page injects into its surfaces */
+      doc.querySelectorAll(".lg-card, .lp-term").forEach(function (surface) {
+        surface.classList.add("lp-interactive");
+        var spot = doc.createElement("span");
+        spot.className = "lp-spotlight";
+        spot.setAttribute("aria-hidden", "true");
+        surface.append(spot);
+        surface.addEventListener("pointermove", function (e) {
+          var rect = surface.getBoundingClientRect();
+          surface.style.setProperty("--spot-x", e.clientX - rect.left + "px");
+          surface.style.setProperty("--spot-y", e.clientY - rect.top + "px");
+          surface.classList.add("spot-on");
+        }, { passive: true });
+        surface.addEventListener("pointerleave", function () { surface.classList.remove("spot-on"); });
+      });
+    }
+
+    if (reduced) draw(false); else syncLoop();
+  })();
+
+  /* ---------- terminal replay ---------- */
+  (function () {
+    var tty = doc.getElementById("lg-tty");
+    if (!tty) return;
+    var SCRIPT = [
+      { t: "$ PUSTAKA_AUTH=1 pustaka serve ./docs", cls: "p" },
+      { t: "pustaka: auth ON — sessions are signed, not stored", cls: "ok", wait: 260 },
+      { t: "pustaka: landing page public · everything else gated", cls: "c", wait: 160 },
+      { t: "awaiting credentials…", cls: "", wait: 220 }
+    ];
+    var pause = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    var line = function (cls) {
+      var s = doc.createElement("span");
+      if (cls) s.className = cls;
+      tty.append(s);
+      return s;
+    };
+    if (reduced) {
+      SCRIPT.forEach(function (s) { line(s.cls).textContent = s.t + "\n"; });
+      return;
+    }
+    (async function () {
+      for (var i = 0; i < SCRIPT.length; i++) {
+        var step = SCRIPT[i];
+        var span = line(step.cls);
+        for (var c = 0; c < step.t.length; c++) {
+          span.textContent += step.t[c];
+          await pause(12);
+        }
+        span.textContent += "\n";
+        await pause(step.wait || 120);
+      }
+      var cur = doc.createElement("span");
+      cur.className = "cur";
+      tty.append(cur);
+    })();
+  })();
+
+  /* ---------- password reveal + caps lock ---------- */
+  var pass = doc.getElementById("lg-pass");
+  var peek = doc.getElementById("lg-peek");
+  var caps = doc.getElementById("lg-caps");
+
+  peek.innerHTML = ICON.eye;
+  peek.addEventListener("click", function () {
+    var show = pass.type === "password";
+    pass.type = show ? "text" : "password";
+    peek.innerHTML = show ? ICON.eyeOff : ICON.eye;
+    peek.setAttribute("aria-pressed", String(show));
+    peek.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    pass.focus();
+  });
+
+  var capsCheck = function (e) {
+    if (!e.getModifierState) return;
+    caps.classList.toggle("on", e.getModifierState("CapsLock"));
+  };
+  pass.addEventListener("keydown", capsCheck);
+  pass.addEventListener("keyup", capsCheck);
+  pass.addEventListener("blur", function () { caps.classList.remove("on"); });
+
+  /* ---------- submit ---------- */
+  var form = doc.getElementById("lg-form");
+  var submit = doc.getElementById("lg-submit");
+  var label = doc.getElementById("lg-submit-label");
+  var alertBox = doc.getElementById("lg-alert");
+  var msg = doc.getElementById("lg-msg");
+  var card = doc.getElementById("lg-card");
+  var userField = doc.getElementById("lg-field-user");
+  var passField = doc.getElementById("lg-field-pass");
+  var countdown = 0;
+
+  function setError(text) {
+    alertBox.dataset.error = text || "";
+    msg.textContent = text || "";
+    userField.classList.toggle("bad", !!text);
+    passField.classList.toggle("bad", !!text);
+    if (!text) return;
+    card.classList.remove("shake");
+    void card.offsetWidth;              /* restart the animation */
+    card.classList.add("shake");
+  }
+
+  function setState(state) {
+    if (state === "loading") {
+      submit.disabled = true;
+      label.textContent = "Signing in…";
+      if (!submit.querySelector(".lg-spin")) {
+        var spin = doc.createElement("span");
+        spin.className = "lg-spin";
+        submit.prepend(spin);
+      }
+    } else if (state === "done") {
+      submit.disabled = true;
+      var s = submit.querySelector(".lg-spin");
+      if (s) s.remove();
+      submit.insertAdjacentHTML("afterbegin", ICON.check);
+      label.textContent = "Welcome back";
+    } else {
+      submit.disabled = countdown > 0;
+      var old = submit.querySelector(".lg-spin, svg");
+      if (old) old.remove();
+      label.textContent = countdown > 0 ? "Locked (" + countdown + "s)" : "Sign in";
+    }
+  }
+
+  function lockFor(seconds) {
+    countdown = seconds;
+    if (countdown <= 0) { setState("idle"); return; }
+    setState("idle");
+    var tick = setInterval(function () {
+      countdown -= 1;
+      if (countdown <= 0) { clearInterval(tick); countdown = 0; }
+      setState("idle");
+    }, 1000);
+  }
+
+  /* a server-rendered lockout (no-JS POST) arrives as an attribute */
+  var initialRetry = parseInt(alertBox.dataset.retry || "0", 10);
+  if (initialRetry > 0) lockFor(initialRetry);
+
+  form.addEventListener("submit", function (e) {
+    if (!window.fetch) return;          /* let the plain form POST happen */
+    e.preventDefault();
+    if (submit.disabled) return;
+
+    var user = doc.getElementById("lg-user").value;
+    var pw = pass.value;
+    if (!user || !pw) {
+      setError("Enter both a username and a password.");
+      (user ? pass : doc.getElementById("lg-user")).focus();
+      return;
+    }
+
+    setError("");
+    setState("loading");
+
+    fetch(form.action, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: user, pass: pw, next: doc.getElementById("lg-next").value })
+    }).then(function (r) {
+      return r.json().then(function (body) { return { status: r.status, body: body }; });
+    }).then(function (res) {
+      if (res.status === 200 && res.body && res.body.ok) {
+        setState("done");
+        var go = function () { location.assign(res.body.next || "/"); };
+        if (doc.startViewTransition && !reduced) doc.startViewTransition(go);
+        else setTimeout(go, reduced ? 0 : 260);
+        return;
+      }
+      var text = (res.body && res.body.error) || "Sign in failed.";
+      if (res.body && res.body.attemptsLeft > 0) {
+        text += " " + res.body.attemptsLeft + " attempt" +
+          (res.body.attemptsLeft === 1 ? "" : "s") + " left.";
+      }
+      setError(text);
+      lockFor((res.body && res.body.retryAfter) || 0);
+      setState("idle");
+      pass.value = "";
+      pass.focus();
+    }).catch(function () {
+      setError("Could not reach the server. Check that pustaka is still running.");
+      setState("idle");
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

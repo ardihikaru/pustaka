@@ -108,6 +108,9 @@ img,svg,canvas{max-width:100%}
 .icon-btn{width:38px;height:38px; border-radius:var(--r-s); display:grid; place-items:center; color:var(--muted); flex:none}
 .icon-btn:hover{background:var(--accent-soft); color:var(--accent-strong)}
 .icon-btn svg{width:18px;height:18px}
+/* optional login layer: injected by site.js only when the server reports it */
+form.auth-ctl{display:flex; flex:none; margin:0}
+a.auth-ctl:hover{text-decoration:none}
 
 /* ---------------- shell / 3 columns ---------------- */
 .shell{
