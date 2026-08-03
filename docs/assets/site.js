@@ -380,17 +380,27 @@
 
   /* Public API for page-level scripts (landing page search demo, etc.).
      Pages must tolerate it being absent: guard with `if (!window.pustaka) return;` */
-  const indexHooks = [];
+  const indexHooks = [], authHooks = [];
+  let authState = null, authSettled = false;
   const API = {
     version: (D.site && D.site.version) || "",
     product: D.product || null,
     pages: FLAT.length,
     records: INDEX.length,
     serverMode: false,
+    auth: null,
     search: (q, limit) => query(q, limit),
     highlight: (text, terms) => hi(text, terms),
     url: (p) => abs(p),
     onIndex: (fn) => { indexHooks.push(fn); return () => { }; },
+    /* Auth state arrives after /info resolves, i.e. after pustaka:ready.
+       Replay for late callers — page scripts re-run on every partial swap,
+       long after this has settled. */
+    onAuth: (fn) => {
+      if (authSettled) { try { fn(authState); } catch (e) { console.error(e); } }
+      else authHooks.push(fn);
+      return () => { };
+    },
     echarts: () => loadEcharts(),
     chartFailed: (node, msg) => chartFailed(node, msg),
     reduced
@@ -612,6 +622,15 @@
     header.insertBefore(node, themeBtn);
   };
 
+  /* Settles API.auth exactly once and releases any page script waiting on it.
+     Static mode settles to null, so onAuth callers never hang. */
+  const settleAuth = (auth) => {
+    authState = auth || null;
+    authSettled = true;
+    API.auth = authState;
+    authHooks.splice(0).forEach(fn => { try { fn(authState); } catch (e) { console.error(e); } });
+  };
+
   fetch(`${SVR}/info`, { cache: "no-store" })
     .then(r => (r.ok ? r.json() : Promise.reject()))
     .then(info => {
@@ -622,8 +641,9 @@
          plain navigations, which the server redirects to the login page. */
       if (!auth || auth.authenticated) enableServerMode();
       paintAuth(auth);
+      settleAuth(auth);
     })
-    .catch(() => { /* static mode — everything already works */ });
+    .catch(() => { settleAuth(null); /* static mode — everything already works */ });
 
   /* Page scripts live inside <main>, so on a normal page load they run
      BEFORE this file. They wait for this event; on a partial swap the API

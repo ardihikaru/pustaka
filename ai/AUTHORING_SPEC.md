@@ -318,9 +318,23 @@ runtime API must therefore handle both:
 
 `window.pustaka` exposes: `search(q, limit)` → `{ terms, results }`,
 `highlight(text, terms)`, `url(relPath)`, `records`, `pages`, `version`,
-`product`, `serverMode`, and `onIndex(fn)` (fires when the server-generated
-index replaces the static one). Never re-implement search in a page — embed
-this API so behaviour stays identical to the overlay.
+`product`, `serverMode`, `auth`, `onIndex(fn)` (fires when the server-generated
+index replaces the static one) and `onAuth(fn)`. Never re-implement search in a
+page — embed this API so behaviour stays identical to the overlay.
+
+`onAuth(fn)` reports the optional login layer once the server has answered,
+which is *after* `pustaka:ready`; late callers are replayed immediately, so a
+script that re-runs on a partial swap still gets its answer. The callback
+receives `null` when the site is not gated (including static `file://` mode),
+otherwise `{ enabled, authenticated, user?, loginUrl, logoutUrl? }`. Use it to
+show something only to signed-out visitors, and always handle `null`:
+
+```js
+H.onAuth(auth => {
+  if (!auth || !auth.enabled || auth.authenticated) return;
+  /* … render a sign-in affordance … */
+});
+```
 
 ### Other script rules
 

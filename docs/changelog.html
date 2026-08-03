@@ -36,6 +36,15 @@
   <div class="clog">
 
     <section class="rel rv">
+      <h3 id="v0-8-0">v0.8.0 <time datetime="2026-08-03">2026-08-03</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> <code>pustaka.onAuth(fn)</code> and <code>pustaka.auth</code>, so a page can render something only for signed-out visitors. The hook resolves after the server answers—later than <code>pustaka:ready</code>—and replays for late callers, so a script that re-runs after a partial swap still receives its answer. It reports <code>null</code> when the site is not gated, including static file mode.</li>
+        <li><span class="chg add">Added</span> A <em>Sign in</em> button in the landing hero beside <em>Get started</em>, rendered through that hook. It appears only when the login layer is on and the visitor is signed out, carries the current page as its return destination, and disappears once signed in. The header control alone was an unlabelled icon and easy to miss.</li>
+        <li><span class="chg fix">Fixed</span> The landing hero's button row was never actually a flex row: the rule was scoped to <code>.hero</code> while the landing hero is <code>.lp-hero</code>, so buttons fell back to inline layout and aligned on their text baselines. Two text-only buttons hid this; a third carrying an icon did not. The row is now flex and centre-aligned for both heroes.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
       <h3 id="v0-7-1">v0.7.1 <time datetime="2026-08-03">2026-08-03</time> <span class="bump patch">patch</span></h3>
       <ul>
         <li><span class="chg fix">Fixed</span> The menu button on the landing page opened nothing at any width. Hiding the landing sidebar with <code>display:none</code> outranked the drawer rules, so the open state applied to an invisible element while the backdrop still appeared—clicking the button only dimmed the page. The landing sidebar now has real overlay-drawer styling and the button opens the full table of contents, which matters below 860&nbsp;px where the landing top bar is hidden.</li>

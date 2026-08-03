@@ -242,6 +242,35 @@
        ready-event pattern from AUTHORING_SPEC §8.
        ============================================================ -->
   <script>
+  /* ---------- "Sign in" CTA: only when the server gates this site ---------- */
+  (function () {
+    const start = (H) => {
+      const row = document.querySelector(".lp-hero .cta-row");
+      if (!row || !H.onAuth) return;
+      H.onAuth((auth) => {
+        const present = row.querySelector(".lp-signin");
+        /* absent when auth is off, and once you are signed in */
+        if (!auth || !auth.enabled || auth.authenticated) { if (present) present.remove(); return; }
+        if (present) return;
+        const cta = document.createElement("a");
+        cta.className = "btn ghost lp-signin";
+        cta.href = H.url("__pustaka/auth/login") + "?next=" +
+          encodeURIComponent(location.pathname + location.search);
+        /* width/height as attributes: an inline svg with neither would lay
+           out at its 300x150 default */
+        cta.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" ' +
+          'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" ' +
+          'aria-hidden="true"><path d="M9.5 4.5h7.7A1.8 1.8 0 0 1 19 6.3v11.4a1.8 1.8 0 0 1-1.8 1.8H9.5"/>' +
+          '<path d="M5.5 12H14M5.5 12l3-3m-3 3 3 3"/></svg>Sign in';
+        row.append(cta);
+      });
+    };
+    if (window.pustaka) start(window.pustaka);
+    else document.addEventListener("pustaka:ready", e => start(e.detail), { once: true });
+  })();
+  </script>
+
+  <script>
   /* ---------- live search demo: reuses the real engine ---------- */
   (function () {
     const start = (H) => {
