@@ -36,6 +36,14 @@
   <div class="clog">
 
     <section class="rel rv">
+      <h3 id="v0-7-1">v0.7.1 <time datetime="2026-08-03">2026-08-03</time> <span class="bump patch">patch</span></h3>
+      <ul>
+        <li><span class="chg fix">Fixed</span> The menu button on the landing page opened nothing at any width. Hiding the landing sidebar with <code>display:none</code> outranked the drawer rules, so the open state applied to an invisible element while the backdrop still appeared—clicking the button only dimmed the page. The landing sidebar now has real overlay-drawer styling and the button opens the full table of contents, which matters below 860&nbsp;px where the landing top bar is hidden.</li>
+        <li><span class="chg fix">Fixed</span> The landing layout broke between 921&nbsp;px and 1023&nbsp;px. The single-column shell and the menu button were declared inside a <code>min-width:1024px</code> query, so below it the shell fell back to the 232&nbsp;px sidebar column, reserved a gutter for a hidden sidebar, and dragged the full-bleed hero off-screen with the headline clipped.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
       <h3 id="v0-7-0">v0.7.0 <time datetime="2026-08-03">2026-08-03</time> <span class="bump minor">minor</span></h3>
       <ul>
         <li><span class="chg add">Added</span> Optional login layer for <code>pustaka serve</code>, enabled by <code>PUSTAKA_AUTH</code> with a single central credential in the environment. Sessions are a stateless HMAC-signed HttpOnly cookie whose payload fingerprints the credential pair, so changing the username or password invalidates outstanding sessions. Unset the variable and the layer disappears completely—routes are never registered and the info endpoint is unchanged.</li>
