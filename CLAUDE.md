@@ -11,7 +11,7 @@ dependencies. Never add one.
 
 **One repo = one product.** `docs/` is that product's documentation,
 `docs/changelog.html` its release history, and `product.semver` in
-`docs/assets/toc.js` its current version (currently `0.7.1`).
+`docs/assets/toc.js` its current version (currently `0.8.0`).
 
 ## Layout
 
@@ -49,7 +49,7 @@ go test ./...                    # Go unit tests
 ```
 
 Current baseline: `check` reports `✓ 21 pages valid, registry consistent`;
-`index` emits 138 records. If your change moves those numbers, that is expected —
+`index` emits 139 records. If your change moves those numbers, that is expected —
 if it makes `check` fail, the change is not done.
 
 Pages also work with zero install: opening `docs/index.html` over `file://`
@@ -208,7 +208,7 @@ releases are searchable and deep-linkable. SemVer rules: major = forks/pages mus
 change to keep working; minor = new backwards-compatible capability; patch =
 fixes only.
 
-Keep the `site.version` field in `toc.js` (`v0.7.1`) in sync with
+Keep the `site.version` field in `toc.js` (`v0.8.0`) in sync with
 `product.semver`, and update `ai/AUTHORING_SPEC.md`'s version header when the
 contract itself changes.
 

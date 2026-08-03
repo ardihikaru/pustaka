@@ -1,4 +1,4 @@
-# Pustaka — HTML-first documentation framework (v0.7.1)
+# Pustaka — HTML-first documentation framework (v0.8.0)
 
 Pustaka is an open-source, HTML-first documentation framework designed for
 humans and AI agents. It enables interactive documentation that agents can
@@ -268,8 +268,28 @@ gradients, engraved grid and pointer spotlight — plus a password reveal, Caps
 Lock warning, a submit button that shows progress, and a lockout countdown.
 Without JavaScript the plain form still works.
 
-Once signed in, a sign-out button appears in the header next to the theme
-toggle.
+### Sign-in affordances
+
+When the site is gated and the visitor is signed out, two controls appear:
+a sign-in button in the header next to the theme toggle, and a **Sign in**
+button in the landing hero beside *Get started*. Both vanish once signed in,
+and the header shows sign-out instead. With the login layer off, neither is
+rendered at all.
+
+The hero button is not hard-coded — `index.html` asks the runtime:
+
+```js
+H.onAuth(auth => {
+  if (!auth || !auth.enabled || auth.authenticated) return;
+  /* … append the button … */
+});
+```
+
+`onAuth(fn)` resolves after the server answers (later than `pustaka:ready`) and
+replays for late callers, so a script re-running after a partial swap still gets
+its answer. It reports `null` when the site is not gated, including static
+`file://` mode. Use the same hook to gate anything else you want signed-out
+visitors to see.
 
 ### Caveats
 
@@ -337,7 +357,7 @@ expiry, credential rotation), the redirect-vs-401 matrix, allowlist traversal,
 open-redirect rejection, lockout, placeholder escaping, and a zero-diff
 assertion for the disabled path. Beyond that: `check` (21 pages incl. depth-2,
 registry consistency,
-prefix + link resolution) · generated index (138 records incl. per-release anchors) ·
+prefix + link resolution) · generated index (139 records incl. per-release anchors) ·
 server endpoints for nested paths, gzip integrity, traversal guard, live
 dev rebuild · `new` scaffolding at depth 2 · jsdom smoke tests in static,
 server, and reduced-motion modes: shell, search overlay, embedded search

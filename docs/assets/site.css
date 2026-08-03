@@ -316,7 +316,10 @@ mark{background:var(--mark); color:var(--mark-ink); border-radius:3px; padding:0
 .hero h1 .hl{color:var(--accent-strong); position:relative; white-space:nowrap}
 .hero h1 .hl::after{content:""; position:absolute; left:0; right:0; bottom:.06em; height:.14em; background:var(--accent); opacity:.28; border-radius:3px; transform:scaleX(0); transform-origin:left; animation:scanx .8s var(--ease) .5s forwards}
 .hero .lede{font-size:clamp(15.5px,2.4vw,18px); color:var(--muted); max-width:56ch; margin:16px 0 26px}
-.hero .cta-row{display:flex; flex-wrap:wrap; gap:11px; margin-bottom:14px}
+/* Landing uses .lp-hero, so it never matched a .hero-only selector: the row
+   fell back to inline layout, baseline-aligning buttons of different heights.
+   align-items keeps a button carrying an icon level with text-only ones. */
+.hero .cta-row,.lp-hero .cta-row{display:flex; flex-wrap:wrap; align-items:center; gap:11px; margin-bottom:14px}
 .btn{display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:14.5px; border-radius:var(--r-s); padding:11px 19px; transition:transform .2s var(--ease), box-shadow .2s}
 .btn.primary{background:var(--accent); color:#fff}
 [data-theme="dark"] .btn.primary{color:#04222B}
