@@ -1,4 +1,4 @@
-# Pustaka — HTML-first documentation framework (v0.7.0)
+# Pustaka — HTML-first documentation framework (v0.7.1)
 
 Pustaka is an open-source, HTML-first documentation framework designed for
 humans and AI agents. It enables interactive documentation that agents can
@@ -337,7 +337,7 @@ expiry, credential rotation), the redirect-vs-401 matrix, allowlist traversal,
 open-redirect rejection, lockout, placeholder escaping, and a zero-diff
 assertion for the disabled path. Beyond that: `check` (21 pages incl. depth-2,
 registry consistency,
-prefix + link resolution) · generated index (137 records incl. per-release anchors) ·
+prefix + link resolution) · generated index (138 records incl. per-release anchors) ·
 server endpoints for nested paths, gzip integrity, traversal guard, live
 dev rebuild · `new` scaffolding at depth 2 · jsdom smoke tests in static,
 server, and reduced-motion modes: shell, search overlay, embedded search
