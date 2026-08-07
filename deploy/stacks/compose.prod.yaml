@@ -1,0 +1,28 @@
+name: pustaka-prod
+
+networks:
+  internal:
+    name: pustaka-prod-int
+    ipam:
+      config:
+        - subnet: 172.30.14.0/24
+
+services:
+  traefik:
+    image: traefik:v3.3
+    restart: unless-stopped
+    # Bind only to the WireGuard address; never publish this on the LAN.
+    ports:
+      - "10.10.0.2:18401:80"
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ../traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks: [internal]
+
+  pustaka:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: [./prod.docs.env]
+    networks: [internal]

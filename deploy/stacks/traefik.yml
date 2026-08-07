@@ -1,0 +1,20 @@
+api:
+  dashboard: false
+  insecure: false
+
+entryPoints:
+  web:
+    address: ":80"
+    # clino is the only peer allowed to supply the original client IP headers.
+    forwardedHeaders:
+      trustedIPs:
+        - "10.10.0.1/32"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO
+accessLog: {}

@@ -34,8 +34,8 @@
     <section class="lg-pitch">
       <p class="lg-kicker rv lg-stag" style="--i:0"><span class="dot"></span>{{SITE_NAME}} {{SITE_VERSION}}</p>
       <h1 class="rv lg-stag" style="--i:1">Sign in to the <span class="hl">documentation</span></h1>
-      <p class="lg-sub rv lg-stag" style="--i:2">This site is private. The landing page stays public;
-        every guide, concept and sample page needs a session.</p>
+      <p class="lg-sub rv lg-stag" style="--i:2">This site is private. Every guide, concept
+        and sample page needs a session.</p>
 
       <div class="lp-term lg-term rv lg-stag" style="--i:3" aria-hidden="true">
         <div class="tb"><i></i><i></i><i></i><span>pustaka</span></div>
@@ -96,7 +96,7 @@
 
       <p class="lg-foot">
         <span>Session ends on sign out</span>
-        <a href="{{BASE}}">← Back to the landing page</a>
+        <a href="{{BASE}}"{{HOME_HIDDEN}}>← Back to the docs home</a>
       </p>
     </section>
 
@@ -291,7 +291,7 @@
     var SCRIPT = [
       { t: "$ PUSTAKA_AUTH=1 pustaka serve ./docs", cls: "p" },
       { t: "pustaka: auth ON — sessions are signed, not stored", cls: "ok", wait: 260 },
-      { t: "pustaka: landing page public · everything else gated", cls: "c", wait: 160 },
+      { t: "pustaka: default-deny · no session, no pages", cls: "c", wait: 160 },
       { t: "awaiting credentials…", cls: "", wait: 220 }
     ];
     var pause = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };

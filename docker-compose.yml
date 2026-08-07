@@ -1,0 +1,23 @@
+name: pustaka
+
+services:
+  pustaka:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PUSTAKA_PORT:-8080}:8080"
+    environment:
+      PUSTAKA_AUTH: "1"
+      PUSTAKA_AUTH_USER: "${PUSTAKA_AUTH_USER:-admin}"
+      PUSTAKA_AUTH_PASS: "${PUSTAKA_AUTH_PASS:-pa55wd}"
+      # This committed fallback is for the local demo only. Use .env to rotate it.
+      PUSTAKA_AUTH_SECRET: "${PUSTAKA_AUTH_SECRET:-local-demo-only-change-this-secret}"
+      PUSTAKA_AUTH_TTL: "${PUSTAKA_AUTH_TTL:-12h}"
+      PUSTAKA_AUTH_SECURE: "${PUSTAKA_AUTH_SECURE:-0}"
+      PUSTAKA_AUTH_PUBLIC_HOME: "${PUSTAKA_AUTH_PUBLIC_HOME:-}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/__pustaka/info"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 3s

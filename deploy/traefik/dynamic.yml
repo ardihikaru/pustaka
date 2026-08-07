@@ -1,0 +1,13 @@
+# Pustaka owns this origin root. There is intentionally no /docs prefix or
+# stripPrefix middleware: root-absolute links and login redirects stay direct.
+http:
+  routers:
+    pustaka:
+      rule: "PathPrefix(`/`)"
+      entryPoints: [web]
+      service: pustaka
+  services:
+    pustaka:
+      loadBalancer:
+        servers:
+          - url: "http://pustaka:8080"
