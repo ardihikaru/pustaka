@@ -4,6 +4,10 @@ Pustaka is an open-source, HTML-first documentation framework designed for
 humans and AI agents. It enables interactive documentation that agents can
 discover, understand, generate, update, and validate programmatically.
 
+Demo: [pustaka.mfardiansyah.id](https://pustaka.mfardiansyah.id) — sign in with
+`admin` / `pa55wd`. Those are public demo credentials; change them anywhere the
+site is not a demo.
+
 Pages are plain HTML (not Markdown), so every page can ship real interactivity:
 live filters, Apache ECharts, tabs, and scroll reveals. A single Go binary
 serves, indexes, scaffolds, and validates the site.
@@ -89,6 +93,22 @@ Served pages auto-upgrade: the search index is generated from the real page
 HTML, and navigation becomes HTMX-style partial swaps of `<main class="doc">`
 (View Transitions animation, gzip, graceful fallback to full loads). Dev mode
 re-reads changed files per request — edit, refresh, done.
+
+### Docker (local)
+
+The local container defaults to the demo login (`admin` / `pa55wd`) on port
+8080. Copy the template before using it beyond a throwaway demo.
+
+```bash
+cp .env.example .env
+# edit .env: at least set a fresh PUSTAKA_AUTH_SECRET
+docker compose up --build
+curl http://localhost:8080/__pustaka/info
+```
+
+Set `PUSTAKA_PORT=3000` for another host port. Local HTTP uses
+`PUSTAKA_AUTH_SECURE=0`; deployed stacks set it to `1` because browsers reach
+them over HTTPS at the edge.
 
 ## Folders: how to organize pages
 
@@ -202,8 +222,8 @@ else document.addEventListener("pustaka:ready", e => start(e.detail), { once: tr
 
 ## Login (optional)
 
-A Pustaka site is public by default. Set `PUSTAKA_AUTH` and `serve` puts one
-shared credential in front of everything except the landing page:
+A Pustaka site is public by default. Set `PUSTAKA_AUTH=1` and `serve` puts one
+shared credential in front of the entire site, including its homepage:
 
 ```bash
 PUSTAKA_AUTH=1 \
@@ -218,6 +238,12 @@ completely — the routes are not even registered and `/__pustaka/info` returns
 exactly what it returned before. Turning it on and off again is a restart, not
 an edit.
 
+| Mode | Environment | Signed-out behaviour |
+|---|---|---|
+| Private (default when enabled) | `PUSTAKA_AUTH=1` | All pages, homepage, ToC, vendor, and runtime assets require login |
+| Public homepage | `PUSTAKA_AUTH=1 PUSTAKA_AUTH_PUBLIC_HOME=1` | Homepage and all assets are public; other pages require login |
+| Auth off | `PUSTAKA_AUTH=0` or unset | No login routes or gate; entire site is public |
+
 ### Environment variables
 
 | Variable | Default | Meaning |
@@ -228,38 +254,40 @@ an edit.
 | `PUSTAKA_AUTH_SECRET` | random | Key that signs the session cookie. Leave it unset and a random one is generated, which logs everyone out on restart |
 | `PUSTAKA_AUTH_TTL` | `12h` | How long a session lasts, as a Go duration (`30m`, `12h`, `168h`) |
 | `PUSTAKA_AUTH_SECURE` | `auto` | `1` marks the cookie Secure, `0` never does, `auto` follows the connection. **Set it to `1` in production** — the engine speaks plain HTTP, so behind a TLS-terminating proxy `auto` cannot tell |
+| `PUSTAKA_AUTH_PUBLIC_HOME` | *unset* | `1` keeps the homepage and all `/assets/` readable signed out; empty or `0` keeps them private. Invalid values are startup errors |
 
 Enabling auth without a username or password is a startup error, not a silent
 open door. Five failed attempts from one address lock it out for a minute.
 
 ### What is public and what is not
 
-Public so the landing page still renders for a visitor who has not signed in:
-`/`, `/index.html`, everything under `/assets/`, the login routes, and
-`/__pustaka/info` (which reports only that auth is on).
+With `PUSTAKA_AUTH=1` (the default auth mode), public routes are only the login
+routes, `/__pustaka/info`, `/robots.txt`, `/favicon.ico`, `/sw.js`, and the
+login page's own assets: `assets/site.css`, `assets/login.css`,
+`assets/fonts.css`, and `assets/fonts/*`.
 
-Guarded: every other page, `/__pustaka/partial/…`, `/index.json` and `/search`.
-Because the check runs before the file is looked up, a page that does not exist
-and a page that does look identical to a signed-out visitor. Note the
-consequence of keeping `assets/` public: `assets/toc.js` lists page titles and
-descriptions, so those are readable by anyone. Page *content* is not.
+Guarded: the homepage, every other page and asset (including ToC, runtime and
+vendor files), `/__pustaka/partial/…`, `/index.json`, and `/search`. Because
+the check runs before the file is looked up, a page that does not exist and a
+page that does look identical to a signed-out visitor.
 
-Navigation degrades gracefully. For a signed-out visitor the runtime stays in
-static mode, so a click on a docs link is a plain navigation, and the server
-answers it with a redirect to the login page carrying `?next=`. Signing in
-returns you there. If a session expires mid-visit the partial endpoint answers
-401, which the runtime already treats as "do a full page load" — same
-destination, one extra round trip.
+Set `PUSTAKA_AUTH_PUBLIC_HOME=1` to make `/`, `/index.html`, and all of
+`/assets/` public. This deliberately exposes runtime and ToC data so the
+anonymous homepage can work. In that mode, a signed-out navigation to a private
+page redirects to login with `?next=`; successful login returns there.
 
 ### The login page
 
 `docs/_login.html` is a real file you can edit — the underscore keeps it
 invisible to the ToC, to `pustaka check`, and to the partial endpoint. It is
 served at `/__pustaka/auth/login` with `{{SITE_NAME}}`, `{{SITE_VERSION}}`,
-`{{BASE}}`, `{{ACTION}}`, `{{NEXT}}`, `{{ERROR}}` and `{{RETRY_AFTER}}`
+`{{BASE}}`, `{{ACTION}}`, `{{NEXT}}`, `{{ERROR}}`, `{{RETRY_AFTER}}` and `{{HOME_HIDDEN}}`
 substituted. In dev mode it is re-read per request, so restyling it needs only
 a refresh; `--prod` caches it. A copy is compiled into the binary, so a docs
 root without the file still gets a working login page.
+
+`{{HOME_HIDDEN}}` hides the back-to-home link while the home is gated, avoiding
+a signed-out redirect loop. It is visible only in public-home mode.
 
 It deliberately does not load `toc.js` or `site.js`: a locked site should not
 hand its table of contents to someone who has not signed in. It borrows the
@@ -270,7 +298,7 @@ Without JavaScript the plain form still works.
 
 ### Sign-in affordances
 
-When the site is gated and the visitor is signed out, two controls appear:
+In public-home mode, when the site is gated and the visitor is signed out, two controls appear:
 a sign-in button in the header next to the theme toggle, and a **Sign in**
 button in the landing hero beside *Get started*. Both vanish once signed in,
 and the header shows sign-out instead. With the login layer off, neither is
@@ -300,6 +328,21 @@ visitors to see.
   the open web; it is not an identity system.
 - Put it behind HTTPS. A password over plain HTTP is readable in transit no
   matter how the cookie is signed.
+
+## Development and production deployment
+
+The deployed origins are `https://dev.pustaka.mfardiansyah.id` and
+`https://pustaka.mfardiansyah.id`. Each has its own Traefik stack on `rnd`:
+dev binds only `10.10.0.2:19401` (`172.30.15.0/24`) and production only
+`10.10.0.2:18401` (`172.30.14.0/24`). Nginx on `clino` terminates TLS and
+proxies each hostname through WireGuard; Pustaka is routed directly at `/`.
+
+The repeatable setup, edge Nginx configuration, HTTP-01 certificate command,
+secret handling, and post-rollout checks are in [deploy/README.md](deploy/README.md).
+On `rnd`, first preserve host-local work with `git stash --include-untracked`,
+then `git pull --ff-only`, create `dev.docs.env` and `prod.docs.env` from the
+template, use different generated session secrets, validate both Compose files,
+and build/up both stacks. Never commit those environment files.
 
 ## Contributing
 

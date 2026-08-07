@@ -86,6 +86,9 @@ type authConfig struct {
 	TTL        time.Duration
 	CookieName string
 	Secure     string // "auto" | "on" | "off"
+	// PublicHome restores the wider legacy allowlist: the docs home and all
+	// assets stay readable signed out. It is deliberately off by default.
+	PublicHome bool
 	// CredFP fingerprints the credential pair, so changing the user or the
 	// password invalidates every outstanding cookie without server state.
 	CredFP string
@@ -599,8 +602,11 @@ func serve(root, addr string, dev bool, a *auth) error {
 	site.mu.RUnlock()
 	fmt.Printf("pustaka: http://localhost%s  (dev=%v)\n", addr, dev)
 	if a != nil {
-		fmt.Printf("pustaka: auth ON — user %q, sessions last %s, everything but the landing page is gated\n",
-			a.cfg.User, a.cfg.TTL)
+		scope := "every page, including the docs home, is gated"
+		if a.cfg.PublicHome {
+			scope = "everything but the docs home and assets/ is gated"
+		}
+		fmt.Printf("pustaka: auth ON — user %q, sessions last %s, %s\n", a.cfg.User, a.cfg.TTL, scope)
 		if a.ephemeral {
 			fmt.Println("pustaka: PUSTAKA_AUTH_SECRET is unset — a random key was generated, so sessions end when this process does")
 		}
@@ -610,9 +616,10 @@ func serve(root, addr string, dev bool, a *auth) error {
 
 /* ============================== auth ================================ */
 
-// The login layer is optional and off unless PUSTAKA_AUTH is set. It gates
-// everything except the landing page and assets/, which the landing page
-// needs. Sessions are a signed cookie, so the server keeps no state.
+// The login layer is optional and off unless PUSTAKA_AUTH is set. By default it
+// gates everything, including the docs home. Set PUSTAKA_AUTH_PUBLIC_HOME=1 to
+// restore the older shape where the home and all assets are public. Sessions are
+// a signed cookie, so the server keeps no state.
 //
 // The engine serves docs/_login.html; the underscore already makes that file
 // invisible to the registry, to `check`, and to the partial endpoint. The
@@ -678,6 +685,14 @@ func loadAuthConfig(env func(string) string) (*authConfig, bool, error) {
 	default:
 		return nil, false, fmt.Errorf("PUSTAKA_AUTH_SECURE %q must be auto, 1 or 0", secure)
 	}
+	publicHome, rawHome := false, strings.TrimSpace(env("PUSTAKA_AUTH_PUBLIC_HOME"))
+	switch strings.ToLower(rawHome) {
+	case "", "0", "false", "no", "off":
+	case "1", "true", "yes", "on":
+		publicHome = true
+	default:
+		return nil, false, fmt.Errorf("PUSTAKA_AUTH_PUBLIC_HOME %q must be 1 or 0", rawHome)
+	}
 	secret, ephemeral := []byte(env("PUSTAKA_AUTH_SECRET")), false
 	if len(secret) == 0 {
 		secret = make([]byte, 32)
@@ -689,7 +704,7 @@ func loadAuthConfig(env func(string) string) (*authConfig, bool, error) {
 	fp := sha256.Sum256([]byte(user + "\x00" + pass))
 	return &authConfig{
 		User: user, Pass: pass, Secret: secret, TTL: ttl,
-		CookieName: authCookieName, Secure: secure,
+		CookieName: authCookieName, Secure: secure, PublicHome: publicHome,
 		CredFP: hex.EncodeToString(fp[:])[:16],
 	}, ephemeral, nil
 }
@@ -798,15 +813,34 @@ func normPath(p string) string {
 	return path.Clean("/" + p)
 }
 
-// isPublic is the allowlist: the landing page, the assets it needs, the login
-// routes, and /info. Everything else is default-deny.
-func isPublic(p string) bool {
+// publicAsset is exactly the static surface the login template needs. Runtime,
+// ToC and vendor files remain private: they disclose the protected site.
+func publicAsset(p string) bool {
 	switch p {
-	case "/", "/index.html", "/robots.txt", "/favicon.ico", internalRoutePrefix + "/info":
+	case "/assets/fonts.css", "/assets/site.css", "/assets/login.css":
 		return true
 	}
-	return p == "/assets" || strings.HasPrefix(p, "/assets/") ||
-		p == authRoutePrefix || strings.HasPrefix(p, authRoutePrefix+"/")
+	return strings.HasPrefix(p, "/assets/fonts/")
+}
+
+// isPublic is the minimal allowlist. Public-home mode deliberately makes the
+// complete runtime/ToC asset tree readable because the anonymous home needs it.
+func (a *auth) isPublic(p string) bool {
+	switch p {
+	case "/robots.txt", "/favicon.ico", "/sw.js", internalRoutePrefix + "/info":
+		return true
+	}
+	if p == authRoutePrefix || strings.HasPrefix(p, authRoutePrefix+"/") {
+		return true
+	}
+	if a.cfg.PublicHome {
+		switch p {
+		case "/", "/index.html":
+			return true
+		}
+		return p == "/assets" || strings.HasPrefix(p, "/assets/")
+	}
+	return publicAsset(p)
 }
 
 // wantsHTMLNav distinguishes a browser navigation (redirect to the login page)
@@ -826,7 +860,7 @@ func wantsHTMLNav(r *http.Request) bool {
 
 func (a *auth) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isPublic(normPath(r.URL.Path)) {
+		if a.isPublic(normPath(r.URL.Path)) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -925,6 +959,10 @@ func (a *auth) template() []byte {
 // renderLogin substitutes the sentinels. Every value is escaped: next and
 // errMsg are attacker-influenced and land inside value="…" attributes.
 func (a *auth) renderLogin(w http.ResponseWriter, code int, next, errMsg string, retry int) {
+	homeHidden := " hidden"
+	if a.cfg.PublicHome {
+		homeHidden = ""
+	}
 	rep := strings.NewReplacer(
 		"{{SITE_NAME}}", html.EscapeString(a.siteName),
 		"{{SITE_VERSION}}", html.EscapeString(a.siteVer),
@@ -935,6 +973,7 @@ func (a *auth) renderLogin(w http.ResponseWriter, code int, next, errMsg string,
 		"{{NEXT}}", html.EscapeString(next),
 		"{{ERROR}}", html.EscapeString(errMsg),
 		"{{RETRY_AFTER}}", strconv.Itoa(retry),
+		"{{HOME_HIDDEN}}", homeHidden,
 	)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -1039,7 +1078,12 @@ func (a *auth) handleLogout(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, map[string]any{"ok": true})
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	// Do not send a signed-out visitor through a needless home → login loop.
+	dest := "/"
+	if !a.cfg.PublicHome {
+		dest = authRoutePrefix + "/login"
+	}
+	http.Redirect(w, r, dest, http.StatusSeeOther)
 }
 
 func sameOrigin(origin, host string) bool {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -129,11 +130,18 @@ func writeServeFixture(t *testing.T) string {
 	mk("guide/x.html", page("x", "../"))
 	mk("assets/site.js", "/* runtime */")
 	mk("assets/site.css", "/* css */")
+	mk("assets/fonts.css", "@font-face{src:url('fonts/x.woff2')}")
+	mk("assets/login.css", "/* login css */")
+	mk("assets/fonts/x.woff2", "woff2")
+	mk("assets/toc/guide.js", "/* toc part */")
+	mk("assets/vendor/echarts.min.js", "/* vendor */")
+	mk("sw.js", "/* kill switch */")
 	mk("_template.html", page("tpl", ""))
 	mk("_login.html", `<!DOCTYPE html><title>Sign in {{SITE_NAME}} {{SITE_VERSION}}</title>
 <link rel="stylesheet" href="{{BASE}}assets/site.css">
 <form method="post" action="{{ACTION}}"><input name="next" value="{{NEXT}}">
-<p data-error="{{ERROR}}" data-retry="{{RETRY_AFTER}}">{{ERROR}}</p></form>`)
+<p data-error="{{ERROR}}" data-retry="{{RETRY_AFTER}}">{{ERROR}}</p></form>
+<a href="{{BASE}}"{{HOME_HIDDEN}}>home</a>`)
 	return root
 }
 
@@ -210,6 +218,21 @@ func TestLoadAuthConfig(t *testing.T) {
 	if _, _, err := loadAuthConfig(with(map[string]string{"PUSTAKA_AUTH_SECURE": "maybe"})); err == nil {
 		t.Fatal("an unknown SECURE mode must fail fast")
 	}
+	if _, _, err := loadAuthConfig(with(map[string]string{"PUSTAKA_AUTH_PUBLIC_HOME": "maybe"})); err == nil {
+		t.Fatal("an unknown PUBLIC_HOME value must fail fast")
+	}
+	for _, on := range []string{"1", "true", "yes", "on", "ON", " Yes "} {
+		cfg, _, err := loadAuthConfig(with(map[string]string{"PUSTAKA_AUTH_PUBLIC_HOME": on}))
+		if err != nil || !cfg.PublicHome {
+			t.Fatalf("PUBLIC_HOME=%q did not enable public home (err=%v)", on, err)
+		}
+	}
+	for _, off := range []string{"0", "false", "no", "off"} {
+		cfg, _, err := loadAuthConfig(with(map[string]string{"PUSTAKA_AUTH_PUBLIC_HOME": off}))
+		if err != nil || cfg.PublicHome {
+			t.Fatalf("PUBLIC_HOME=%q did not gate the home (err=%v)", off, err)
+		}
+	}
 
 	cfg, ephemeral, err := loadAuthConfig(with(nil))
 	if err != nil {
@@ -226,6 +249,9 @@ func TestLoadAuthConfig(t *testing.T) {
 	}
 	if cfg.CredFP == "" {
 		t.Fatal("credential fingerprint must be set")
+	}
+	if cfg.PublicHome {
+		t.Fatal("the home must be gated by default")
 	}
 }
 
@@ -291,6 +317,35 @@ func TestAuthCreds(t *testing.T) {
 	}
 }
 
+func TestAuthCookieSecurity(t *testing.T) {
+	root := writeServeFixture(t)
+	for _, tt := range []struct {
+		name   string
+		over   map[string]string
+		tls    bool
+		secure bool
+	}{
+		{name: "forced secure", over: map[string]string{"PUSTAKA_AUTH_SECURE": "1"}, secure: true},
+		{name: "forced insecure", over: map[string]string{"PUSTAKA_AUTH_SECURE": "0"}, tls: true},
+		{name: "auto over TLS", tls: true, secure: true},
+		{name: "auto over HTTP"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			a := testAuth(t, root, tt.over)
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.tls {
+				r.TLS = &tls.ConnectionState{}
+			}
+			w := httptest.NewRecorder()
+			a.setCookie(w, r)
+			got := strings.Contains(w.Header().Get("Set-Cookie"), "; Secure")
+			if got != tt.secure {
+				t.Errorf("Secure=%v, want %v (%q)", got, tt.secure, w.Header().Get("Set-Cookie"))
+			}
+		})
+	}
+}
+
 func TestSafeNext(t *testing.T) {
 	tests := []struct{ in, want string }{
 		{"", "/"},
@@ -337,9 +392,18 @@ func TestAuthMiddlewareMatrix(t *testing.T) {
 		want     int
 		location string
 	}{
-		{name: "landing is public", method: "GET", target: "/", headers: doc, want: 200},
-		{name: "index.html is public", method: "GET", target: "/index.html", headers: doc, want: 200},
-		{name: "assets are public", method: "GET", target: "/assets/site.js", headers: xhr, want: 200},
+		{name: "home is gated", method: "GET", target: "/", headers: doc, want: 302, location: authRoutePrefix + "/login"},
+		{name: "index is gated", method: "GET", target: "/index.html", headers: doc, want: 302, location: "next=%2Findex.html"},
+		{name: "signed in home renders", method: "GET", target: "/", headers: doc, cookie: valid, want: 200},
+		{name: "runtime is gated", method: "GET", target: "/assets/site.js", headers: xhr, want: 401},
+		{name: "toc is gated", method: "GET", target: "/assets/toc.js", headers: xhr, want: 401},
+		{name: "vendor is gated", method: "GET", target: "/assets/vendor/echarts.min.js", headers: xhr, want: 401},
+		{name: "login stylesheet is public", method: "GET", target: "/assets/site.css", headers: xhr, want: 200},
+		{name: "login css is public", method: "GET", target: "/assets/login.css", headers: xhr, want: 200},
+		{name: "font css is public", method: "GET", target: "/assets/fonts.css", headers: xhr, want: 200},
+		{name: "font is public", method: "GET", target: "/assets/fonts/x.woff2", headers: xhr, want: 200},
+		{name: "service-worker kill switch is public", method: "GET", target: "/sw.js", headers: xhr, want: 200},
+		{name: "font traversal fails", method: "GET", target: "/assets/fonts/../../guide/x.html", headers: doc, want: 302},
 		{name: "guarded page redirects", method: "GET", target: "/guide/x.html", headers: doc,
 			want: 302, location: authRoutePrefix + "/login?next=%2Fguide%2Fx.html"},
 		{name: "query survives in next", method: "GET", target: "/guide/x.html?tag=a", headers: doc,
@@ -385,6 +449,18 @@ func TestAuthMiddlewareMatrix(t *testing.T) {
 			}
 		})
 	}
+
+	// There is no useful return target beyond the gated root, so do not create
+	// a login → home → login loop or leak a needless next query.
+	t.Run("home redirect has no next", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Sec-Fetch-Dest", "document")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if got := w.Header().Get("Location"); got != authRoutePrefix+"/login" {
+			t.Errorf("home redirect = %q, want %q", got, authRoutePrefix+"/login")
+		}
+	})
 }
 
 func TestAuthInfoPayload(t *testing.T) {
@@ -426,6 +502,60 @@ func TestAuthInfoPayload(t *testing.T) {
 	if auth == nil || auth["authenticated"] != true || auth["user"] != testUser {
 		t.Fatalf("authenticated auth block wrong: %v", in["auth"])
 	}
+}
+
+func TestAuthPublicHomeMode(t *testing.T) {
+	root := writeServeFixture(t)
+	a := testAuth(t, root, map[string]string{"PUSTAKA_AUTH_PUBLIC_HOME": "1"})
+	h := testHandler(t, root, a)
+	get := func(target string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodGet, target, nil)
+		r.Header.Set("Sec-Fetch-Dest", "document")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	for _, target := range []string{"/", "/index.html", "/assets/site.js", "/assets/toc.js", "/assets/vendor/echarts.min.js"} {
+		if w := get(target); w.Code != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", target, w.Code)
+		}
+	}
+	if w := get("/guide/x.html"); w.Code != http.StatusFound {
+		t.Errorf("private page = %d, want 302", w.Code)
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, authRoutePrefix+"/logout", nil))
+	if got := w.Header().Get("Location"); got != "/" {
+		t.Errorf("public-home logout = %q, want /", got)
+	}
+	if body := get(authRoutePrefix + "/login").Body.String(); !strings.Contains(body, `<a href="/">`) || strings.Contains(body, `hidden`) {
+		t.Errorf("public-home login should expose a usable home link: %q", body)
+	}
+}
+
+func TestLoginPageHidesHomeLinkWhenGated(t *testing.T) {
+	root := writeServeFixture(t)
+	h := testHandler(t, root, testAuth(t, root, nil))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, authRoutePrefix+"/login", nil))
+	if body := w.Body.String(); !strings.Contains(body, `<a href="/" hidden>`) {
+		t.Errorf("gated login must hide the home link: %q", body)
+	}
+	for name, src := range map[string][]byte{"embedded": embeddedLogin, "docs/_login.html": mustRead(t, filepath.Join("docs", "_login.html"))} {
+		if !strings.Contains(string(src), "{{HOME_HIDDEN}}") {
+			t.Errorf("%s is missing {{HOME_HIDDEN}}", name)
+		}
+	}
+}
+
+func mustRead(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 func TestAuthDisabledPassthrough(t *testing.T) {
@@ -612,6 +742,9 @@ func TestLoginHandlers(t *testing.T) {
 		h.ServeHTTP(w, httptest.NewRequest("POST", authRoutePrefix+"/logout", nil))
 		if w.Code != 303 {
 			t.Fatalf("POST logout = %d, want 303", w.Code)
+		}
+		if got := w.Header().Get("Location"); got != authRoutePrefix+"/login" {
+			t.Errorf("gated logout Location = %q, want login", got)
 		}
 		if sc := w.Header().Get("Set-Cookie"); !strings.Contains(sc, "Max-Age=0") {
 			t.Errorf("logout must expire the cookie, got %q", sc)

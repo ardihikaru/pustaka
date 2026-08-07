@@ -21,3 +21,11 @@ Thumbs.db
 *.log
 tmp/
 temp/
+
+# Deployment runtime secrets (templates are committed)
+.env
+.env.local
+dev.docs.env
+prod.docs.env
+deploy/stacks/dev.docs.env
+deploy/stacks/prod.docs.env

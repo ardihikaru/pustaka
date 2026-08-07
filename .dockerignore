@@ -1,0 +1,17 @@
+.git/
+.github/
+.idea/
+.vscode/
+*.log
+*.out
+*.test
+/pustaka
+/halaman
+coverage.out
+tmp/
+temp/
+.env
+*.env
+!*.env.example
+deploy/stacks/dev.docs.env
+deploy/stacks/prod.docs.env
