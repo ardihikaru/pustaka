@@ -1,4 +1,4 @@
-# Pustaka — HTML-first documentation framework (v0.8.0)
+# Pustaka — HTML-first documentation framework (v0.9.0)
 
 Pustaka is an open-source, HTML-first documentation framework designed for
 humans and AI agents. It enables interactive documentation that agents can

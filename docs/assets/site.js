@@ -19,19 +19,22 @@
   const SITE_ROOT = new URL(self.getAttribute("src").replace(/assets\/site\.js$/, "") || ".", location.href);
   const abs = p => new URL(p, SITE_ROOT).href;
 
+  /* async=false: the parts download in parallel but still execute in list
+     order. Loading them one after another made every page wait N round trips
+     before any chrome existed — the half-built page readers saw. */
   const loadPart = src => new Promise((res, rej) => {
     const t = doc.createElement("script");
+    t.async = false;
     t.src = abs(src); t.onload = res; t.onerror = () => rej(new Error(src));
     doc.head.append(t);
   });
 
   async function boot() {
     const D = window.DOCS;
-    if (Array.isArray(D.parts)) {
-      for (const p of D.parts) {
-        try { await loadPart(p); } catch (e) { console.error("pustaka: failed to load toc part:", e.message); }
-      }
-    }
+    const parts = Array.isArray(D.parts) ? D.parts : [];
+    (await Promise.allSettled(parts.map(loadPart))).forEach(r => {
+      if (r.status === "rejected") console.error("pustaka: failed to load toc part:", r.reason.message);
+    });
     init(D);
   }
 
@@ -248,8 +251,11 @@
   topBtn.addEventListener("click", () => scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" }));
   addEventListener("scroll", () => topBtn.classList.toggle("show", scrollY > 600), { passive: true });
 
-  const rvObs = new IO(es => es.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add("in"); rvObs.unobserve(e.target); }
+  /* Blocks that scroll into view together reveal in a short stagger:
+     50ms apart, capped so the last one starts within 300ms. */
+  const rvObs = new IO(es => es.filter(e => e.isIntersecting).forEach((e, i) => {
+    e.target.style.transitionDelay = reduced ? "" : `${Math.min(i, 6) * 50}ms`;
+    e.target.classList.add("in"); rvObs.unobserve(e.target);
   }), { rootMargin: "0px 0px -8% 0px" });
 
   /* ============================================================
@@ -364,10 +370,34 @@
       }));
     });
 
-    /* ---- reveal ---- */
-    doc.querySelectorAll(".rv:not(.in)").forEach(n => rvObs.observe(n));
+    /* ---- reveal ----
+       Anything already on screen is shown as-is: it was visible while the
+       runtime loaded (or is arriving inside a page transition) and must not
+       blink out to fade back in. Only what is below the fold waits. */
+    doc.querySelectorAll(".rv:not(.in)").forEach(n => {
+      const r = n.getBoundingClientRect();
+      if (r.top < innerHeight && r.bottom > 0) n.classList.add("in");
+      else rvObs.observe(n);
+    });
   }
   wirePage();
+  /* The chrome is in place: from here on theme changes animate and
+     below-the-fold .rv blocks hide until they are scrolled to. */
+  root.classList.add("ready");
+
+  /* Slow-navigation progress bar. It only appears when a partial
+     navigation takes longer than 150ms, so fast ones show nothing. */
+  const progress = el(`<div class="pk-progress" aria-hidden="true"></div>`);
+  doc.body.append(progress);
+  let progTimer = 0;
+  const progStart = () => {
+    clearTimeout(progTimer); progress.className = "pk-progress";
+    progTimer = setTimeout(() => { void progress.offsetWidth; progress.classList.add("run"); }, 150);
+  };
+  const progEnd = () => {
+    clearTimeout(progTimer);
+    if (progress.classList.contains("run")) progress.classList.replace("run", "done");
+  };
 
   /* ============================================================
      SEARCH — index from toc.js, replaced by the server's
@@ -529,11 +559,13 @@
     const target = file && byFile(file);
     if (!target) { location.href = href; return; }
     let j;
+    progStart();
     try {
       const r = await fetch(`${SVR}/partial/${file}`);
       if (!r.ok) throw 0;
       j = await r.json();
     } catch { location.href = href; return; }   // graceful fallback: full load
+    progEnd();
 
     const resolveResources = (html, baseURL) => {
       const t = doc.createElement("template");
@@ -575,8 +607,15 @@
       if (anchor) anchor.scrollIntoView(); else scrollTo(0, 0);
     };
 
-    if (doc.startViewTransition && !reduced) doc.startViewTransition(apply);
-    else { article.style.animation = "fadeup .3s cubic-bezier(.22,.9,.3,1)"; await apply(); setTimeout(() => article.style.animation = "", 350); }
+    /* Only the article moves (see PAGE TRANSITIONS in site.css): the old page
+       leaves in 100ms, the new one rises in. Reduced motion swaps instantly. */
+    if (reduced) await apply();
+    else if (doc.startViewTransition) doc.startViewTransition(apply);
+    else {
+      article.classList.remove("pk-enter"); await apply();
+      void article.offsetWidth; article.classList.add("pk-enter");
+      setTimeout(() => article.classList.remove("pk-enter"), 240);
+    }
   }
 
   function enableServerMode() {
