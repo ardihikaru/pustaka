@@ -615,7 +615,7 @@ body[data-layout="landing"] .doc > *:not(.lp-hero):not(.lp-full){
 .hide{display:none !important}
 
 /* reveal on scroll */
-.rv{transition:opacity .3s var(--ease-out), transform .3s var(--ease-out)}
+.rv{transition:opacity .28s var(--ease-out), transform .28s var(--ease-out)}
 /* Hidden only once the runtime is ready, and site.js marks everything
    already on screen as .in first — so without JS, or while the runtime is
    still loading, nothing is invisible and nothing on screen blinks. */
