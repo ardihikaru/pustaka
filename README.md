@@ -8,7 +8,7 @@
 **HTML-first documentation that humans read and AI agents can write, check,
 and search.** Pustaka is an open-source documentation framework: pages are
 plain HTML, and one dependency-free Go binary serves, indexes, scaffolds, and
-validates the site. Current release: **v0.10.0**.
+validates the site. Current release: **v0.10.1**.
 
 Demo: [pustaka.mfardiansyah.id](https://pustaka.mfardiansyah.id) — sign in with
 `admin` / `pa55wd`. Those are public demo credentials; change them anywhere the

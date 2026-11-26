@@ -12,7 +12,7 @@ dependencies. Never add one.
 
 **One repo = one product.** `docs/` is that product's documentation,
 `docs/changelog.html` its release history, and `product.semver` in
-`docs/assets/toc.js` its current version (currently `0.10.0`).
+`docs/assets/toc.js` its current version (currently `0.10.1`).
 
 ## Layout
 
@@ -250,7 +250,7 @@ releases are searchable and deep-linkable. SemVer rules: major = forks/pages mus
 change to keep working; minor = new backwards-compatible capability; patch =
 fixes only.
 
-Keep the `site.version` field in `toc.js` (`v0.10.0`) in sync with
+Keep the `site.version` field in `toc.js` (`v0.10.1`) in sync with
 `product.semver`, and update `ai/AUTHORING_SPEC.md`'s version header when the
 contract itself changes.
 
