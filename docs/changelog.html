@@ -36,6 +36,15 @@
   <div class="clog">
 
     <section class="rel rv">
+      <h3 id="v0-9-1">v0.9.1 <time datetime="2026-11-26">2026-11-26</time> <span class="bump patch">patch</span></h3>
+      <ul>
+        <li><span class="chg fix">Fixed</span> Returning readers could keep a cached page without the pre-paint snippet. Pages are revalidated with <code>If-Modified-Since</code>, and the server compared it with the file's own date, so an unchanged page answered 304 even though the server now serves different bytes. An injected page's <code>Last-Modified</code> is now never earlier than the server's start.</li>
+        <li><span class="chg fix">Fixed</span> The login page lost its entrance animation in v0.9.0, because reveal blocks hide only once the page is marked ready. The login page has no runtime, so it now sets that mark itself before the first paint.</li>
+        <li><span class="chg change">Changed</span> The font preload's base is taken only when it is a run of <code>../</code>. Anything else means no preload. The snippet is built from the page and from constants, never from the request.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
       <h3 id="v0-9-0">v0.9.0 <time datetime="2026-11-26">2026-11-26</time> <span class="bump minor">minor</span></h3>
       <ul>
         <li><span class="chg fix">Fixed</span> A page looked broken until it finished loading. The runtime builds the header, sidebar and page table of contents, but it ran only after every registry part had downloaded one after another. Until then the article was the shell's only child, so the grid put it in the 248&nbsp;px sidebar column, and it jumped to the middle when the sidebar arrived. On a long page this lasted for the whole download. The shell now uses named grid areas, so the article sits in its own column from the first paint. The header strip is reserved, and the empty sidebar column shows a quiet skeleton. Nothing moves when the real chrome arrives.</li>

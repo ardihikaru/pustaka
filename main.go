@@ -582,7 +582,7 @@ func newHandler(site *Site, root string, dev bool, a *auth) http.Handler {
 		}
 		if strings.HasSuffix(full, ".html") && !strings.HasPrefix(filepath.Base(full), "_") {
 			if b, err := io.ReadAll(f); err == nil {
-				http.ServeContent(w, r, full, fi.ModTime(), bytes.NewReader(injectHead(b)))
+				http.ServeContent(w, r, full, servedModTime(fi.ModTime()), bytes.NewReader(injectHead(b)))
 				return
 			}
 			http.Error(w, "read error", http.StatusInternalServerError)
@@ -612,11 +612,28 @@ const headTheme = `<script>try{var t=localStorage.getItem("pustaka-theme");` +
 
 // reAssetBase finds the page's own asset prefix ("", "../", …) from its
 // site.css link, so a preload resolves exactly like the page's stylesheets.
-var reAssetBase = regexp.MustCompile(`href="([^"]*)assets/site\.css"`)
+// The base may only be a run of "../": anything else (a quote, an absolute
+// URL, a stray character) means no preload rather than copying it into markup.
+var reAssetBase = regexp.MustCompile(`href="((?:\.\./)*)assets/site\.css"`)
+
+// startedAt is the earliest Last-Modified an injected page may carry. The
+// response depends on this binary as well as on the file, so a page whose file
+// predates a deploy must not answer 304 to a cache holding the old bytes.
+var startedAt = time.Now().UTC().Truncate(time.Second)
+
+// servedModTime is the later of the file's mtime and startedAt.
+func servedModTime(file time.Time) time.Time {
+	if file.Before(startedAt) {
+		return startedAt
+	}
+	return file
+}
 
 // injectHead adds the pre-paint snippet just before </head>: the theme script
 // and a preload for the body font. Pages are left byte-for-byte untouched on
 // disk; a page without </head> (or already carrying the marker) is served as is.
+// Invariant: the snippet is built from the page file and constants only, never
+// from the request (Host, headers, query), so it cannot carry attacker bytes.
 func injectHead(page []byte) []byte {
 	if bytes.Contains(page, []byte(headMarker)) {
 		return page

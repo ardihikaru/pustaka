@@ -12,6 +12,9 @@
      `pustaka check`, and to the partial endpoint. -->
 <script>
   /* apply the saved theme before first paint — shared key with site.js */
+  /* "ready" arms the shared .rv reveal (site.css hides .rv only under
+     html.ready); this page has no site.js, so it sets the class itself */
+  document.documentElement.classList.add("ready");
   try {
     var t = localStorage.getItem("pustaka-theme");
     document.documentElement.dataset.theme =

@@ -972,6 +972,43 @@ func TestHeadInjection(t *testing.T) {
 		t.Error("the gzip body lost or doubled the snippet")
 	}
 
+	// A cache holding a copy from before this binary started must not get a
+	// 304: the file's own mtime is older than the snippet.
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(filepath.Join(root, "guide", "x.html"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest("GET", "/guide/x.html", nil)
+	r.Header.Set("If-Modified-Since", old.UTC().Format(http.TimeFormat))
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), headMarker) {
+		t.Errorf("a revalidation at the file's mtime answered %d without the snippet", w.Code)
+	}
+
+	// The snippet carries no request-derived bytes.
+	snippetOf := func(host, prefix string) string {
+		r := httptest.NewRequest("GET", "/guide/x.html", nil)
+		r.Host = host
+		if prefix != "" {
+			r.Header.Set("X-Forwarded-Prefix", prefix)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		b := w.Body.String()
+		i := strings.Index(b, headMarker)
+		return b[i:strings.Index(b, "</head>")]
+	}
+	if a, b := snippetOf("a.example", ""), snippetOf("evil.example\"><script>", "/x\"><svg>"); a != b {
+		t.Errorf("the snippet varies with the request:\n%s\n%s", a, b)
+	}
+
+	// A base that is not a run of "../" gets no preload.
+	odd := injectHead([]byte(`<head><link href="https://x/assets/site.css"></head>`))
+	if strings.Contains(string(odd), "preload") {
+		t.Errorf("a non-relative base produced a preload: %s", odd)
+	}
+
 	// Idempotent, and a page without </head> is left alone.
 	once := injectHead([]byte("<html><head></head><body></body></html>"))
 	if !bytes.Equal(injectHead(once), once) {
