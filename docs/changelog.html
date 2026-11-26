@@ -36,6 +36,13 @@
   <div class="clog">
 
     <section class="rel rv">
+      <h3 id="v0-9-2">v0.9.2 <time datetime="2026-11-26">2026-11-26</time> <span class="bump patch">patch</span></h3>
+      <ul>
+        <li><span class="chg fix">Fixed</span> <code>pustaka check</code> now rejects a registry part with two entries and no comma between them. The engine reads the registry with patterns that skip over the gap, so the check used to pass. The browser rejects the whole file, so every page in it silently disappeared from the sidebar and from search. A site using pustaka lost two whole sections this way for months.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
       <h3 id="v0-10-0">v0.10.0 <time datetime="2026-11-26">2026-11-26</time> <span class="bump minor">minor</span></h3>
       <ul>
         <li><span class="chg add">Added</span> Pustaka is now packaged for outside contributors. It ships an MIT licence, <code>CONTRIBUTING.md</code>, <code>SECURITY.md</code> (private advisories), a code of conduct, third-party notices, issue and pull-request templates, and a CI workflow. CI runs <code>gofmt</code>, <code>go vet</code>, <code>go test</code>, <code>go build</code> and <code>pustaka check ./docs</code> on every pull request.</li>

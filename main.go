@@ -617,6 +617,10 @@ const headTheme = `<script>try{var t=localStorage.getItem("pustaka-theme");` +
 // site.css link, so a preload resolves exactly like the page's stylesheets.
 // The base may only be a run of "../": anything else (a quote, an absolute
 // URL, a stray character) means no preload rather than copying it into markup.
+// reNoComma finds a closing brace at the end of one line and an opening brace
+// at the start of the next: a missing comma between two registry entries.
+var reNoComma = regexp.MustCompile(`\}[ \t]*\r?\n[ \t]*\{`)
+
 var reAssetBase = regexp.MustCompile(`href="((?:\.\./)*)assets/site\.css"`)
 
 // startedAt is the earliest Last-Modified an injected page may carry. The
@@ -1363,6 +1367,14 @@ func check(root string) int {
 		}
 		if reEmptyMenu.Match(b) {
 			bad(rf, "menu children cannot be empty")
+		}
+		// The registry is read here with regexes, which skip over syntax the
+		// browser cannot: two entries with no comma between them still yield
+		// both pages to the engine, while site.js throws on the whole file and
+		// the reader silently loses every page in it.
+		for _, m := range reNoComma.FindAllIndex(b, -1) {
+			line := strings.Count(string(b[:m[0]]), "\n") + 1
+			bad(rf, fmt.Sprintf("line %d: two entries with no comma between them — the browser drops this whole file", line))
 		}
 	}
 
