@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
 	"crypto/hmac"
 	"crypto/rand"
@@ -579,6 +580,14 @@ func newHandler(site *Site, root string, dev bool, a *auth) http.Handler {
 		default:
 			w.Header().Set("Cache-Control", "public, max-age=300")
 		}
+		if strings.HasSuffix(full, ".html") && !strings.HasPrefix(filepath.Base(full), "_") {
+			if b, err := io.ReadAll(f); err == nil {
+				http.ServeContent(w, r, full, fi.ModTime(), bytes.NewReader(injectHead(b)))
+				return
+			}
+			http.Error(w, "read error", http.StatusInternalServerError)
+			return
+		}
 		http.ServeContent(w, r, full, fi.ModTime(), f)
 	})
 
@@ -589,6 +598,43 @@ func newHandler(site *Site, root string, dev bool, a *auth) http.Handler {
 		h = a.middleware(h)
 	}
 	return h
+}
+
+// headMarker tags the snippet injectHead adds, so it is never added twice.
+const headMarker = "<!-- pustaka:head -->"
+
+// headTheme applies the saved theme before first paint. site.js used to set it
+// only after the toc parts had loaded, so a dark-mode reader saw the light
+// palette (and its transition) first. Same storage key as site.js and
+// _login.html.
+const headTheme = `<script>try{var t=localStorage.getItem("pustaka-theme");` +
+	`document.documentElement.dataset.theme=t||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>`
+
+// reAssetBase finds the page's own asset prefix ("", "../", …) from its
+// site.css link, so a preload resolves exactly like the page's stylesheets.
+var reAssetBase = regexp.MustCompile(`href="([^"]*)assets/site\.css"`)
+
+// injectHead adds the pre-paint snippet just before </head>: the theme script
+// and a preload for the body font. Pages are left byte-for-byte untouched on
+// disk; a page without </head> (or already carrying the marker) is served as is.
+func injectHead(page []byte) []byte {
+	if bytes.Contains(page, []byte(headMarker)) {
+		return page
+	}
+	i := bytes.Index(bytes.ToLower(page), []byte("</head>"))
+	if i < 0 {
+		return page
+	}
+	snippet := headMarker + headTheme
+	if m := reAssetBase.FindSubmatch(page); m != nil {
+		snippet += `<link rel="preload" href="` + string(m[1]) +
+			`assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>`
+	}
+	out := make([]byte, 0, len(page)+len(snippet)+1)
+	out = append(out, page[:i]...)
+	out = append(out, snippet...)
+	out = append(out, '\n')
+	return append(out, page[i:]...)
 }
 
 func serve(root, addr string, dev bool, a *auth) error {

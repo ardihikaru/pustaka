@@ -36,6 +36,18 @@
   <div class="clog">
 
     <section class="rel rv">
+      <h3 id="v0-9-0">v0.9.0 <time datetime="2026-11-26">2026-11-26</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg fix">Fixed</span> A page looked broken until it finished loading. The runtime builds the header, sidebar and page table of contents, but it ran only after every registry part had downloaded one after another. Until then the article was the shell's only child, so the grid put it in the 248&nbsp;px sidebar column, and it jumped to the middle when the sidebar arrived. On a long page this lasted for the whole download. The shell now uses named grid areas, so the article sits in its own column from the first paint. The header strip is reserved, and the empty sidebar column shows a quiet skeleton. Nothing moves when the real chrome arrives.</li>
+        <li><span class="chg fix">Fixed</span> Dark-mode readers saw the light palette first, and then an animated switch to dark. The server now adds a small snippet before <code>&lt;/head&gt;</code> of every page it serves. It applies the saved theme before the first paint and preloads the body font. Files on disk are untouched, and files whose names start with an underscore are skipped.</li>
+        <li><span class="chg fix">Fixed</span> The landing hero rendered squeezed until the runtime added its class. Its styles now key on <code>data-layout="landing"</code>, which the page already carries.</li>
+        <li><span class="chg change">Changed</span> Registry parts download in parallel and still run in list order, so the chrome appears after one round trip instead of N.</li>
+        <li><span class="chg change">Changed</span> Reveal-on-scroll blocks are visible until the runtime is ready, and blocks already on screen are never hidden, so nothing blinks out and back in. Blocks that scroll into view together reveal 50&nbsp;ms apart, and the last starts within 300&nbsp;ms.</li>
+        <li><span class="chg add">Added</span> Partial navigation moves only the article. The old page fades up and out in 100&nbsp;ms, and the new one rises in over 180&nbsp;ms while the header and sidebar stay still. A thin progress bar appears only when a page takes longer than 150&nbsp;ms. Buttons get a subtle press, the mobile drawer opens with ease-out and closes faster than it opens, and with reduced motion everything swaps instantly.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
       <h3 id="v0-8-0">v0.8.0 <time datetime="2026-08-03">2026-08-03</time> <span class="bump minor">minor</span></h3>
       <ul>
         <li><span class="chg add">Added</span> <code>pustaka.onAuth(fn)</code> and <code>pustaka.auth</code>, so a page can render something only for signed-out visitors. The hook resolves after the server answers—later than <code>pustaka:ready</code>—and replays for late callers, so a script that re-runs after a partial swap still receives its answer. It reports <code>null</code> when the site is not gated, including static file mode.</li>

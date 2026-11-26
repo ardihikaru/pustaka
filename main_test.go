@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -905,5 +907,77 @@ func TestAuthGzipOrdering(t *testing.T) {
 	}
 	if enc := w.Header().Get("Content-Encoding"); enc != "gzip" {
 		t.Errorf("an allowed page should still be compressed, got %q", enc)
+	}
+}
+
+// The pre-paint head snippet: present once, before </head>, with a font preload
+// that resolves like the page's own stylesheet; absent from assets, from
+// underscore pages and from the partial endpoint; still gzip-compressed.
+func TestHeadInjection(t *testing.T) {
+	root := writeServeFixture(t)
+	h := testHandler(t, root, nil)
+	get := func(path string, gz bool) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", path, nil)
+		if gz {
+			r.Header.Set("Accept-Encoding", "gzip")
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+
+	for path, base := range map[string]string{"/": "", "/index.html": "", "/guide/x.html": "../"} {
+		w := get(path, false)
+		body := w.Body.String()
+		if w.Code != 200 {
+			t.Fatalf("%s: status %d", path, w.Code)
+		}
+		if n := strings.Count(body, headMarker); n != 1 {
+			t.Errorf("%s: marker appears %d times, want 1", path, n)
+		}
+		if i, j := strings.Index(body, headMarker), strings.Index(body, "</head>"); i < 0 || i > j {
+			t.Errorf("%s: snippet is not inside <head>", path)
+		}
+		if !strings.Contains(body, `localStorage.getItem("pustaka-theme")`) {
+			t.Errorf("%s: theme script missing", path)
+		}
+		if want := `href="` + base + `assets/fonts/atkinson-hyperlegible-latin-400-normal.woff2"`; !strings.Contains(body, want) {
+			t.Errorf("%s: preload %s missing", path, want)
+		}
+		if cl := w.Header().Get("Content-Length"); cl != fmt.Sprint(len(body)) {
+			t.Errorf("%s: Content-Length %q, body %d bytes", path, cl, len(body))
+		}
+	}
+
+	if body := get("/assets/site.css", false).Body.String(); strings.Contains(body, headMarker) {
+		t.Error("an asset must not be injected")
+	}
+	if w := get("/_template.html", false); strings.Contains(w.Body.String(), headMarker) {
+		t.Error("an underscore page must not be injected")
+	}
+	if body := get("/__pustaka/partial/guide/x.html", false).Body.String(); strings.Contains(body, "pustaka:head") {
+		t.Error("the partial endpoint must not carry the head snippet")
+	}
+
+	w := get("/guide/x.html", true)
+	if enc := w.Header().Get("Content-Encoding"); enc != "gzip" {
+		t.Fatalf("Content-Encoding %q, want gzip", enc)
+	}
+	zr, err := gzip.NewReader(w.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, _ := io.ReadAll(zr)
+	if strings.Count(string(plain), headMarker) != 1 {
+		t.Error("the gzip body lost or doubled the snippet")
+	}
+
+	// Idempotent, and a page without </head> is left alone.
+	once := injectHead([]byte("<html><head></head><body></body></html>"))
+	if !bytes.Equal(injectHead(once), once) {
+		t.Error("injectHead is not idempotent")
+	}
+	if got := injectHead([]byte("<p>fragment</p>")); string(got) != "<p>fragment</p>" {
+		t.Errorf("a page without </head> changed: %q", got)
 	}
 }
