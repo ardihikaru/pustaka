@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -219,6 +220,12 @@ func TestLoadAuthConfig(t *testing.T) {
 	}
 	if _, _, err := loadAuthConfig(with(map[string]string{"PUSTAKA_AUTH_SECURE": "maybe"})); err == nil {
 		t.Fatal("an unknown SECURE mode must fail fast")
+	}
+	if _, _, err := loadAuthConfig(with(map[string]string{"PUSTAKA_AUTH_TRUSTED_PROXIES": "not-an-ip"})); err == nil {
+		t.Fatal("an invalid PUSTAKA_AUTH_TRUSTED_PROXIES must be rejected")
+	}
+	if cfg, _, err := loadAuthConfig(with(map[string]string{"PUSTAKA_AUTH_TRUSTED_PROXIES": "172.30.0.0/16"})); err != nil || len(cfg.TrustedProxies) != 1 {
+		t.Fatalf("trusted proxies not parsed: %v", err)
 	}
 	if _, _, err := loadAuthConfig(with(map[string]string{"PUSTAKA_AUTH_PUBLIC_HOME": "maybe"})); err == nil {
 		t.Fatal("an unknown PUBLIC_HOME value must fail fast")
@@ -799,6 +806,48 @@ func TestThrottleLockout(t *testing.T) {
 	th.reset("ip")
 	if _, ok := th.allow("ip"); !ok {
 		t.Fatal("reset must clear the record")
+	}
+}
+
+func TestClientIP(t *testing.T) {
+	proxies, err := parseTrustedProxies("172.30.0.0/16, 10.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := parseTrustedProxies("10.0.0.0/33"); err == nil {
+		t.Fatal("an invalid CIDR must be rejected")
+	}
+	if _, err := parseTrustedProxies("proxy.local"); err == nil {
+		t.Fatal("a hostname must be rejected")
+	}
+	req := func(peer string, xff ...string) *http.Request {
+		r := httptest.NewRequest("POST", "/__pustaka/login", nil)
+		r.RemoteAddr = peer + ":5555"
+		for _, v := range xff {
+			r.Header.Add("X-Forwarded-For", v)
+		}
+		return r
+	}
+	cases := []struct {
+		name    string
+		r       *http.Request
+		trusted []*net.IPNet
+		want    string
+	}{
+		{"no proxies: header ignored", req("172.30.0.5", "1.2.3.4"), nil, "172.30.0.5"},
+		{"untrusted peer: header ignored", req("8.8.8.8", "1.2.3.4"), proxies, "8.8.8.8"},
+		{"trusted peer: client from header", req("172.30.0.5", "1.2.3.4"), proxies, "1.2.3.4"},
+		{"spoofed left entries skipped", req("172.30.0.5", "6.6.6.6, 1.2.3.4, 10.0.0.1"), proxies, "1.2.3.4"},
+		{"multiple header lines joined", req("172.30.0.5", "6.6.6.6", "1.2.3.4"), proxies, "1.2.3.4"},
+		{"all hops trusted: peer", req("172.30.0.5", "10.0.0.1"), proxies, "172.30.0.5"},
+		{"no header: peer", req("172.30.0.5"), proxies, "172.30.0.5"},
+		{"garbage hop: peer", req("172.30.0.5", "1.2.3.4, nonsense"), proxies, "172.30.0.5"},
+		{"ipv6 client behind proxy", req("172.30.0.5", "2001:db8::7"), proxies, "2001:db8::7"},
+	}
+	for _, c := range cases {
+		if got := clientIP(c.r, c.trusted); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

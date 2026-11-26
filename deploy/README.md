@@ -33,26 +33,35 @@ files on the app host, so the committed manifests are identical everywhere.
 
 ## App host
 
-From the checkout, preserve any host-local changes before updating, then create
-the four runtime files once. Do not reuse session secrets across environments.
+### First install
+
+Create the four runtime files once. `cp -n` never overwrites an existing
+file. Do not reuse session secrets across environments.
 
 ```bash
 cd /path/to/pustaka
-git stash push --include-untracked -m 'pre-pustaka-deploy'   # only if dirty
-git pull --ff-only
-
 for env in dev prod; do
-  cp deploy/stacks/compose.env.example deploy/stacks/$env.compose.env
-  cp deploy/stacks/docs.env.example    deploy/stacks/$env.docs.env
+  cp -n deploy/stacks/compose.env.example deploy/stacks/$env.compose.env
+  cp -n deploy/stacks/docs.env.example    deploy/stacks/$env.docs.env
 done
-# Edit all four. Give dev and prod different PUSTAKA_BIND ports and subnets,
-# and different PUSTAKA_AUTH_SECRET values (openssl rand -hex 32).
+# Fill in every value. Give dev and prod different PUSTAKA_BIND ports and
+# subnets, and different PUSTAKA_AUTH_SECRET values (openssl rand -hex 32).
 chmod 600 deploy/stacks/*.compose.env deploy/stacks/*.docs.env
 ```
 
-Render, then roll out each stack:
+The compose file derives `PUSTAKA_AUTH_TRUSTED_PROXIES` from
+`PUSTAKA_SUBNET` and `PUSTAKA_EDGE_IP`, so the login throttle sees each
+visitor's real address instead of Traefik's — no second copy to keep in sync.
+Traefik's static configuration is the `command:` flags in the compose file
+(entry point, trusted edge IP, file provider for `traefik/dynamic.yml`); there
+is no `traefik.yml`.
+
+### Roll out (first install and every update)
 
 ```bash
+cd /path/to/pustaka
+git stash push --include-untracked -m 'pre-pustaka-deploy'   # only if tracked files are dirty
+git pull --ff-only
 for env in dev prod; do
   docker compose --env-file deploy/stacks/$env.compose.env \
     -f deploy/stacks/compose.$env.yaml config >/dev/null &&
@@ -61,8 +70,33 @@ for env in dev prod; do
 done
 ```
 
-A missing value fails the render with `required variable … is missing`, rather
-than publishing on a default address.
+An empty or missing value fails the render with `required variable … is
+missing`, rather than publishing on a guessed address. The runtime env files
+are git-ignored, so `git stash` leaves them in place.
+
+### Upgrading from the hard-coded layout (≤ v0.8)
+
+Earlier manifests hard-coded the bind address, subnet and edge IP and used
+`deploy/stacks/traefik.yml`. Before pulling, save the current render so you
+can copy the old values and compare:
+
+```bash
+for env in dev prod; do
+  docker compose -f deploy/stacks/compose.$env.yaml config > /tmp/pustaka-old.$env.yaml
+done
+git pull --ff-only
+# Create $env.compose.env with the ports/subnet/edge IP from the saved
+# renders (keep the existing $env.docs.env untouched), then:
+for env in dev prod; do
+  docker compose --env-file deploy/stacks/$env.compose.env \
+    -f deploy/stacks/compose.$env.yaml config | diff /tmp/pustaka-old.$env.yaml - | grep -E 'published|host_ip|subnet'
+done
+```
+
+No `published`/`host_ip`/`subnet` lines in the diff means the networks are
+recreated identically. Run `up -d --build` right after the pull: the old
+Traefik container bind-mounts the deleted `traefik.yml`, and if it restarts
+first Docker may create a directory at that path (remove it if so).
 
 ## Edge host
 
@@ -101,4 +135,7 @@ curl -i https://dev.docs.example.com/
 ```
 
 `/__pustaka/info` reports the running `version`; confirm it matches the
-release you just pulled.
+release you just pulled. To confirm the throttle is per visitor, fail five
+logins from one client and then sign in from another: the second must not be
+locked out. If it is, the edge connection is being source-NATed and Traefik
+never sees the edge IP.

@@ -1,20 +1,56 @@
-# Pustaka — HTML-first documentation framework (v0.9.1)
+# Pustaka
 
-Pustaka is an open-source, HTML-first documentation framework designed for
-humans and AI agents. It enables interactive documentation that agents can
-discover, understand, generate, update, and validate programmatically.
+[![CI](https://github.com/ardihikaru/pustaka/actions/workflows/ci.yml/badge.svg)](https://github.com/ardihikaru/pustaka/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Go 1.24+](https://img.shields.io/badge/go-1.24%2B-00ADD8.svg)
+![Dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
+
+**HTML-first documentation that humans read and AI agents can write, check,
+and search.** Pustaka is an open-source documentation framework: pages are
+plain HTML, and one dependency-free Go binary serves, indexes, scaffolds, and
+validates the site. Current release: **v0.10.0**.
 
 Demo: [pustaka.mfardiansyah.id](https://pustaka.mfardiansyah.id) — sign in with
 `admin` / `pa55wd`. Those are public demo credentials; change them anywhere the
 site is not a demo.
 
-Pages are plain HTML (not Markdown), so every page can ship real interactivity:
-live filters, Apache ECharts, tabs, and scroll reveals. A single Go binary
-serves, indexes, scaffolds, and validates the site.
+## Why Pustaka
+
+- **Real pages, not Markdown.** Every page can ship live filters, Apache
+  ECharts, tabs, diagrams and scroll reveals — no plugin system in between.
+- **Built for agents.** A written page contract
+  ([`ai/AUTHORING_SPEC.md`](ai/AUTHORING_SPEC.md)), a drop-in
+  [system prompt](ai/SYSTEM_PROMPT.md), a machine gate (`pustaka check`) and
+  a JSON search index let a model draft, validate and fix pages on its own.
+- **Reviewed by a goldfish.** The authoring loop follows the
+  [Elephant-Goldfish Model](https://github.com/google/elephant-goldfish-model):
+  a context-rich author drafts, a fresh-context reviewer checks. See
+  [Design with an elephant, review with a goldfish](docs/guide/elephant-goldfish.html).
+- **Zero dependencies, zero third-party requests.** Stdlib Go, self-hosted
+  fonts, vendored ECharts. Works offline and under a strict CSP.
+- **Zero install to read.** Open `docs/index.html` from disk and search,
+  filters, charts and theming still work. Serve it and navigation upgrades to
+  HTMX-style partial swaps.
+- **Optional login.** One env var puts the whole site behind a signed-cookie
+  login when the docs are private.
+
+## Quickstart
+
+```bash
+git clone https://github.com/ardihikaru/pustaka.git && cd pustaka
+go build -o pustaka .            # Go 1.24+, one ~8 MB static binary
+./pustaka serve ./docs           # http://localhost:8080
+./pustaka check ./docs           # validate every page against the spec
+```
+
+Or with Docker: `docker compose up --build` (demo login `admin` / `pa55wd`).
 
 **Usage model: one repo = one product.** Fork this repo for each product you
 document; `docs/` becomes that product's docs, `changelog.html` its release
-history, and `product.semver` in `assets/toc.js` its current version.
+history, and `product.semver` in `assets/toc.js` its current version. See the
+[fork checklist](#fork-checklist-per-product).
+
+## Layout
 
 ```
 pustaka/
@@ -31,6 +67,7 @@ pustaka/
 │   │   ├── page-metadata.html
 │   │   ├── nested-sidebar.html
 │   │   ├── ai-tutorial.html   ← how to prompt a model to write pages
+│   │   ├── elephant-goldfish.html ← the author/reviewer agent workflow
 │   │   ├── charts.html
 │   │   ├── sisflow/           ← offline Sisflow guides and derived samples
 │   │   │   ├── erd.html
@@ -67,6 +104,12 @@ pustaka/
 ├── ai/
 │   ├── AUTHORING_SPEC.md      The standard every page must follow
 │   └── SYSTEM_PROMPT.md       Paste into a model → it becomes a Pustaka author
+├── .claude/                   Agent workflow (Elephant-Goldfish Model)
+│   ├── skills/                pustaka-elephant · pustaka-author · pustaka-review
+│   └── agents/                pustaka-goldfish — fresh-context page reviewer
+├── designs/                   Approved design docs + SITEMAP.md index
+├── deploy/                    Reference Docker/Traefik/Nginx topology
+├── AGENTS.md                  Instructions for any coding agent (CLAUDE.md imports it)
 └── README.md
 ```
 
@@ -213,8 +256,17 @@ else document.addEventListener("pustaka:ready", e => start(e.detail), { once: tr
 3. Save the emitted files (complete pages + the complete changed ToC part).
 4. `./pustaka check ./docs` — paste any errors back verbatim; the model
    fixes and re-emits. Repeat until `✓`.
-5. `./pustaka serve ./docs` — nav, search, and partial navigation pick the
+5. **Goldfish review.** Give a *fresh* model only the changed pages and
+   `ai/AUTHORING_SPEC.md` — no chat history — and ask for findings. Feed
+   them back to the author; it fixes or rejects each, then `check` again.
+6. `./pustaka serve ./docs` — nav, search, and partial navigation pick the
    page up automatically.
+
+In Claude Code the loop is packaged: `/pustaka-author` drafts (the
+elephant), `/pustaka-review` runs `check` plus the read-only
+`pustaka-goldfish` agent and EGM's comprehension and style reviewers, each
+in its own fresh context. See
+[the guide page](docs/guide/elephant-goldfish.html).
 
 `docs/concept/faq.html` was produced exactly this way (first draft failed
 `check` with three violations; second passed), and
@@ -255,9 +307,12 @@ an edit.
 | `PUSTAKA_AUTH_TTL` | `12h` | How long a session lasts, as a Go duration (`30m`, `12h`, `168h`) |
 | `PUSTAKA_AUTH_SECURE` | `auto` | `1` marks the cookie Secure, `0` never does, `auto` follows the connection. **Set it to `1` in production** — the engine speaks plain HTTP, so behind a TLS-terminating proxy `auto` cannot tell |
 | `PUSTAKA_AUTH_PUBLIC_HOME` | *unset* | `1` keeps the homepage and all `/assets/` readable signed out; empty or `0` keeps them private. Invalid values are startup errors |
+| `PUSTAKA_AUTH_TRUSTED_PROXIES` | *unset* | Comma-separated IPs/CIDRs of reverse proxies allowed to name the client in `X-Forwarded-For`. Unset, the header is ignored. **Set it behind a proxy** — otherwise every visitor shares the proxy's address and one person's failed logins lock out everyone. List every hop you run (e.g. the Docker subnet *and* the TLS edge) |
 
 Enabling auth without a username or password is a startup error, not a silent
-open door. Five failed attempts from one address lock it out for a minute.
+open door. Five failed attempts from one address lock it out for a minute;
+behind a proxy, "address" means the client named by trusted proxies (see
+`PUSTAKA_AUTH_TRUSTED_PROXIES`), never a header a client sent directly.
 
 ### What is public and what is not
 
@@ -329,36 +384,31 @@ visitors to see.
 - Put it behind HTTPS. A password over plain HTTP is readable in transit no
   matter how the cookie is signed.
 
-## Development and production deployment
+## Deploying
 
-The deployed origins are `https://dev.pustaka.mfardiansyah.id` and
-`https://pustaka.mfardiansyah.id`. Each has its own Traefik stack on `rnd`:
-dev binds only `10.10.0.2:19401` (`172.30.15.0/24`) and production only
-`10.10.0.2:18401` (`172.30.14.0/24`). Nginx on `clino` terminates TLS and
-proxies each hostname through WireGuard; Pustaka is routed directly at `/`.
+Anything that can run one binary or one container works: `pustaka serve
+./docs --prod` behind your reverse proxy of choice, or the `Dockerfile`.
+[`docs/guide/deploy/production.html`](docs/guide/deploy/production.html)
+covers systemd and static hosting.
 
-The repeatable setup, edge Nginx configuration, HTTP-01 certificate command,
-secret handling, and post-rollout checks are in [deploy/README.md](deploy/README.md).
-On `rnd`, first preserve host-local work with `git stash --include-untracked`,
-then `git pull --ff-only`, create `dev.docs.env` and `prod.docs.env` from the
-template, use different generated session secrets, validate both Compose files,
-and build/up both stacks. Never commit those environment files.
+[`deploy/`](deploy/README.md) is a complete reference topology — a TLS edge
+(Nginx + Certbot) forwarding over a private tunnel to per-environment Traefik
+stacks — with all host-specific values kept in untracked env files.
 
 ## Contributing
 
-**`main` is protected by convention: every change lands through a pull
-request.** Branch, verify, push, open a PR — never commit or push to `main`
-directly.
+Contributions are welcome — read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+The short version: branch, keep it stdlib-only, and make both gates pass.
 
 ```bash
 git checkout -b feat/my-change
-go test ./... && ./pustaka check ./docs   # both must pass before pushing
-git push -u origin feat/my-change
+go test ./... && ./pustaka check ./docs   # CI runs the same gate
 gh pr create --base main
 ```
 
-`pustaka check ./docs` is the acceptance gate — the same one the AI authoring
-loop uses — so run it locally before opening the PR.
+`main` only moves through merged pull requests. Larger changes start with a
+short design in [`designs/`](designs/SITEMAP.md), reviewed Elephant-Goldfish
+style. Security reports go through [SECURITY.md](SECURITY.md).
 
 ## Fork checklist (per product)
 
@@ -398,16 +448,16 @@ chart bugs fixed in v0.5 went unnoticed earlier.
 parsing, and the whole login layer: config loading, session signing (tamper,
 expiry, credential rotation), the redirect-vs-401 matrix, allowlist traversal,
 open-redirect rejection, lockout, placeholder escaping, and a zero-diff
-assertion for the disabled path. Beyond that: `check` (21 pages incl. depth-2,
+assertion for the disabled path. Beyond that: `check` (22 pages incl. depth-2,
 registry consistency,
-prefix + link resolution) · generated index (139 records incl. per-release anchors) ·
+prefix + link resolution) · generated index (148 records incl. per-release anchors) ·
 server endpoints for nested paths, gzip integrity, traversal guard, live
 dev rebuild · `new` scaffolding at depth 2 · jsdom smoke tests in static,
 server, and reduced-motion modes: shell, search overlay, embedded search
 demo (AND semantics, chips, empty state, server-index upgrade), AI terminal
 replay, device mockups, live filters, cross-folder partial swaps + history.
 
-Browser regression over all 21 pages asserts: zero third-party requests, the
+Browser regression over all 22 pages asserts: zero third-party requests, the
 brand font actually applied, correct chrome per layout, filters that really
 hide (computed `display`) and restore, chart canvases present **and painted**
 (sampled pixels), no console/page errors — plus `file://` static mode and
@@ -416,3 +466,8 @@ landing↔docs partial navigation.
 Measured on this repo (loopback, warm): median partial-swap response
 0.8 ms · 2.9 kB gzipped article per navigation · 31 ms full index rebuild.
 Method and caveats on the performance page.
+
+## License
+
+[MIT](LICENSE) © ardihikaru and Pustaka contributors. Vendored fonts and
+ECharts keep their own licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

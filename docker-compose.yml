@@ -15,6 +15,7 @@ services:
       PUSTAKA_AUTH_TTL: "${PUSTAKA_AUTH_TTL:-12h}"
       PUSTAKA_AUTH_SECURE: "${PUSTAKA_AUTH_SECURE:-0}"
       PUSTAKA_AUTH_PUBLIC_HOME: "${PUSTAKA_AUTH_PUBLIC_HOME:-}"
+      PUSTAKA_AUTH_TRUSTED_PROXIES: "${PUSTAKA_AUTH_TRUSTED_PROXIES:-}"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/__pustaka/info"]
       interval: 10s

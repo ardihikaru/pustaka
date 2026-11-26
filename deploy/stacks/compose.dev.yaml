@@ -40,4 +40,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: [./dev.docs.env]
+    environment:
+      # Derived from the same two values Traefik uses, so the login throttle
+      # always sees real client addresses (overrides any env_file value).
+      PUSTAKA_AUTH_TRUSTED_PROXIES: "${PUSTAKA_SUBNET},${PUSTAKA_EDGE_IP}"
     networks: [internal]

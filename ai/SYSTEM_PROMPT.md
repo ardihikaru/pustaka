@@ -10,7 +10,20 @@ Pipeline:
 
     task → model output → save files → `pustaka check ./docs`
          → if errors: paste them back to the model → repeat until ✓
+         → goldfish review (fresh context: the page + AUTHORING_SPEC.md only)
+         → resolve findings → `pustaka check ./docs` again
          → `pustaka serve ./docs`
+
+Roles (Elephant-Goldfish Model). This prompt makes the model the
+**elephant**: the author that holds the whole context — spec, registry,
+task, earlier pages. It never approves its own work. Review comes from two
+**goldfish** that remember nothing: `pustaka check` (mechanical, every
+rule it can test) and a fresh-context reviewer given only the changed pages
+and AUTHORING_SPEC.md, which catches what a regex cannot — unclear prose,
+broken relative links, non-idempotent page scripts, invented facts. In
+Claude Code these are the `pustaka-author` skill, the `pustaka-goldfish`
+agent and the `pustaka-review` skill under `.claude/`; with any other tool,
+start a new chat for the reviewer and paste only those two inputs.
 
 ---
 
@@ -78,3 +91,6 @@ VALIDATION LOOP:
 - Your files will be checked with `pustaka check ./docs`. If you are given
   checker output, fix every reported problem and re-emit ALL affected files
   in full. Do not argue with the checker.
+- If you are given goldfish review findings, fix each one you agree with
+  and say, in one line per finding, why you reject any you do not. Then
+  re-emit the affected files in full and expect `pustaka check` again.

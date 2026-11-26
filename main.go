@@ -93,6 +93,9 @@ type authConfig struct {
 	// CredFP fingerprints the credential pair, so changing the user or the
 	// password invalidates every outstanding cookie without server state.
 	CredFP string
+	// TrustedProxies are the peers allowed to name the client in
+	// X-Forwarded-For. Empty (the default) means the header is ignored.
+	TrustedProxies []*net.IPNet
 }
 
 /* ============================== parsing ============================ */
@@ -756,6 +759,10 @@ func loadAuthConfig(env func(string) string) (*authConfig, bool, error) {
 	default:
 		return nil, false, fmt.Errorf("PUSTAKA_AUTH_PUBLIC_HOME %q must be 1 or 0", rawHome)
 	}
+	proxies, err := parseTrustedProxies(env("PUSTAKA_AUTH_TRUSTED_PROXIES"))
+	if err != nil {
+		return nil, false, err
+	}
 	secret, ephemeral := []byte(env("PUSTAKA_AUTH_SECRET")), false
 	if len(secret) == 0 {
 		secret = make([]byte, 32)
@@ -768,8 +775,34 @@ func loadAuthConfig(env func(string) string) (*authConfig, bool, error) {
 	return &authConfig{
 		User: user, Pass: pass, Secret: secret, TTL: ttl,
 		CookieName: authCookieName, Secure: secure, PublicHome: publicHome,
-		CredFP: hex.EncodeToString(fp[:])[:16],
+		CredFP: hex.EncodeToString(fp[:])[:16], TrustedProxies: proxies,
 	}, ephemeral, nil
+}
+
+// parseTrustedProxies reads a comma/space separated list of IPs or CIDRs.
+// A bare IP becomes a single-address network.
+func parseTrustedProxies(raw string) ([]*net.IPNet, error) {
+	var out []*net.IPNet
+	for _, f := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ' ' }) {
+		if !strings.Contains(f, "/") {
+			ip := net.ParseIP(f)
+			if ip == nil {
+				return nil, fmt.Errorf("PUSTAKA_AUTH_TRUSTED_PROXIES: %q is not an IP or CIDR", f)
+			}
+			bits := 128
+			if ip.To4() != nil {
+				ip, bits = ip.To4(), 32
+			}
+			out = append(out, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+			continue
+		}
+		_, n, err := net.ParseCIDR(f)
+		if err != nil {
+			return nil, fmt.Errorf("PUSTAKA_AUTH_TRUSTED_PROXIES: %q is not an IP or CIDR", f)
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }
 
 func newAuth(cfg *authConfig, root string, dev, ephemeral bool) *auth {
@@ -1090,7 +1123,7 @@ func (a *auth) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	}
 	next = safeNext(next)
 
-	ip := clientIP(r)
+	ip := clientIP(r, a.cfg.TrustedProxies)
 	if wait, ok := a.thr.allow(ip); !ok {
 		secs := int(wait.Seconds()) + 1
 		w.Header().Set("Retry-After", strconv.Itoa(secs))
@@ -1154,13 +1187,47 @@ func sameOrigin(origin, host string) bool {
 	return err == nil && u.Host == host
 }
 
-// clientIP deliberately ignores X-Forwarded-For: honouring it lets an attacker
-// rotate the header to escape throttling and to lock out a victim's address.
-func clientIP(r *http.Request) string {
-	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return h
+// clientIP keys the login throttle. X-Forwarded-For is ignored unless the
+// direct peer is a configured trusted proxy: honouring it from anyone lets an
+// attacker rotate the header to escape throttling or lock out a victim. Behind
+// a proxy, though, ignoring it makes every visitor share the proxy's address,
+// so five wrong passwords from anyone lock everyone out. With trusted proxies
+// the header is walked right to left and the first untrusted hop is the
+// client — entries left of it are client-supplied and never consulted.
+func clientIP(r *http.Request, trusted []*net.IPNet) string {
+	peer := r.RemoteAddr
+	if h, _, err := net.SplitHostPort(peer); err == nil {
+		peer = h
 	}
-	return r.RemoteAddr
+	isTrusted := func(s string) bool {
+		ip := net.ParseIP(s)
+		if ip == nil {
+			return false
+		}
+		for _, n := range trusted {
+			if n.Contains(ip) {
+				return true
+			}
+		}
+		return false
+	}
+	if len(trusted) == 0 || !isTrusted(peer) {
+		return peer
+	}
+	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	for i := len(hops) - 1; i >= 0; i-- {
+		h := strings.TrimSpace(hops[i])
+		if h == "" {
+			continue
+		}
+		if net.ParseIP(h) == nil {
+			return peer // malformed chain: fall back to the proxy, never to a guess
+		}
+		if !isTrusted(h) {
+			return h
+		}
+	}
+	return peer
 }
 
 /* ---------- brute-force throttle ---------- */

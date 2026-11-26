@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Design with an elephant, review with a goldfish — Pustaka</title>
+<meta name="description" content="How Pustaka's AI workflow splits authoring and review between a context-rich elephant and a fresh-context goldfish, following the Elephant-Goldfish Model.">
+<link rel="stylesheet" href="../assets/fonts.css"><!-- self-hosted, no third-party request -->
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-page="elephant-goldfish">
+
+<div class="shell">
+<main class="doc">
+
+  <p class="eyebrow">Guide</p>
+  <h1>Design with an elephant, review with a goldfish</h1>
+  <p class="lede">The model that wrote a page is the worst judge of it: it remembers what it
+  meant to say. Pustaka splits the work in two — an author that knows everything, and a
+  reviewer that knows only the page and the contract.</p>
+
+  <div class="page-meta"
+       data-tags="ai, workflow, review"
+       data-hashtags="egm, agents"
+       data-published="2026-11-26"
+       data-updated="2026-11-26"
+       data-version-from="0.10.0"></div>
+
+  <h2 id="two-roles">Two roles</h2>
+  <p>The split comes from the
+  <a href="https://github.com/google/elephant-goldfish-model">Elephant-Goldfish Model</a> (EGM),
+  an open-source, Apache-2.0 workflow for designing and reviewing software with agents. The
+  names describe memory: an elephant forgets nothing about the project, a goldfish remembers
+  nothing but the page in front of it. Both are useful, and you need both, in that order.</p>
+
+  <table class="tbl"><thead><tr><th>Role</th><th>Sees</th><th>Does</th></tr></thead><tbody>
+    <tr><td><strong>Elephant</strong></td><td>Everything: the spec, the registry, earlier pages, the
+      task, the conversation so far.</td><td>Drafts pages and design documents.</td></tr>
+    <tr><td><strong>Goldfish</strong></td><td>Only the document under review and the sources it
+      cites. No chat history, no project instructions file.</td><td>Finds gaps the author can no
+      longer see.</td></tr>
+    <tr><td><strong>You</strong></td><td>The goals and the trade-offs.</td><td>Accept or reject each
+      finding, approve the pull request.</td></tr>
+  </tbody></table>
+
+  <div class="adm note">
+    <p class="adm-title">The rule</p>
+    <p>An author never approves its own draft. Review always happens in a new context that was
+    given files, not a summary of the conversation.</p>
+  </div>
+
+  <h2 id="pustaka-loop">How it maps onto Pustaka</h2>
+  <p>Pustaka already had half of this: <code>pustaka check</code> is a goldfish. It remembers
+  nothing and tests every page against the same rules every time. A second, model-based goldfish
+  covers what a validator cannot test — whether a newcomer can follow the page, whether a number
+  was invented, whether a page script survives
+  <a href="../concept/architecture.html">partial navigation</a> without a full reload.</p>
+
+  <div class="flow">
+    <div class="node"><b>1 · Elephant drafts</b><span><code>ai/SYSTEM_PROMPT.md</code></span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>2 · Mechanical goldfish</b><span><code>pustaka check ./docs</code></span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>3 · Model goldfish</b><span>page + spec only</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>4 · Resolve</b><span>fix or reject, check again</span></div>
+  </div>
+
+  <p>Steps 1–2 are the <a href="ai-tutorial.html#the-loop">correction loop</a>. Step 3 is new:
+  start a fresh session, give it only the changed pages and <code>ai/AUTHORING_SPEC.md</code>,
+  and ask for findings. Step 4 goes back to the author, which fixes each finding or says in one
+  line why it rejects it.</p>
+
+  <h2 id="claude-code">In Claude Code</h2>
+  <p>The repository ships the loop as project skills and an agent under <code>.claude/</code>.
+  They work on their own; installing the EGM plugin adds its reviewers and design skills.</p>
+
+  <table class="tbl"><thead><tr><th>Name</th><th>Kind</th><th>Role</th></tr></thead><tbody>
+    <tr><td><code>/pustaka-elephant</code></td><td>Skill</td><td>Loads project context before designing — the
+      spec, the code map, the directory contracts (<code>EGM.md</code>) and the design index
+      (<code>designs/SITEMAP.md</code>).</td></tr>
+    <tr><td><code>/pustaka-author</code></td><td>Skill</td><td>The elephant author. Wraps
+      <code>ai/SYSTEM_PROMPT.md</code>: scaffold, register, write, check until ✓.</td></tr>
+    <tr><td><code>pustaka-goldfish</code></td><td>Agent</td><td>Read-only page reviewer that starts
+      without the project instructions file and reads only the targets and the spec.</td></tr>
+    <tr><td><code>/pustaka-review</code></td><td>Skill</td><td>Runs <code>check</code>, then
+      <code>pustaka-goldfish</code> and EGM's comprehension and style reviewers in parallel, then
+      resolves the findings.</td></tr>
+  </tbody></table>
+
+  <div class="ctabs">
+    <div class="heads">
+      <button class="on">Install EGM</button>
+      <button>Review a page</button>
+      <button>Design a feature</button>
+    </div>
+    <div class="panel on">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">bash</span><button class="copy">copy</button></div>
+        <pre>claude plugin marketplace add google/elephant-goldfish-model
+claude plugin install egm@egm</pre>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">text</span><button class="copy">copy</button></div>
+        <pre>/pustaka-author Document the rate-limits API with a chart per plan tier
+/pustaka-review docs/guide/rate-limits.html</pre>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="codeblock">
+        <div class="bar"><span class="lang">text</span><button class="copy">copy</button></div>
+        <pre>/pustaka-elephant
+/egm:egm-brainstorm A pustaka lint command for broken external links
+/egm:egm-draft
+/egm:egm-review .dev/docs/design_draft.md</pre>
+      </div>
+    </div>
+  </div>
+
+  <p>Once the review of a design is resolved, <code>egm-draft</code> writes it to
+  <code>designs/&lt;feature&gt;.md</code>; add it to <code>designs/SITEMAP.md</code> and commit
+  both in the same pull request a human approves. Everything in <code>.dev/docs/</code> stays
+  local.</p>
+
+  <p>Other tools follow the same shape: run the author with <code>ai/SYSTEM_PROMPT.md</code>, then
+  open a new chat for the reviewer and paste in only the page and the spec.</p>
+
+  <h2 id="repo-layout">Where things live</h2>
+  <p>Designs sit outside <code>docs/</code> because everything under <code>docs/</code> is the
+  published site, and it stays HTML-only. Drafts and review reports are git-ignored: only the
+  approved result is worth keeping, and a reviewer's raw notes would go stale on the next
+  commit.</p>
+  <table class="tbl"><thead><tr><th>Path</th><th>Holds</th></tr></thead><tbody>
+    <tr><td><code>AGENTS.md</code></td><td>Instructions for any coding agent;
+      <code>CLAUDE.md</code> imports it.</td></tr>
+    <tr><td><code>designs/</code></td><td>Approved design documents and
+      <code>SITEMAP.md</code>, their index. Outside <code>docs/</code> on purpose: the published
+      site stays HTML-only.</td></tr>
+    <tr><td><code>EGM.md</code></td><td>Directory contracts — interface, invariants, side effects —
+      at the root and next to the code they describe. Hand-written <code>README.md</code> files
+      stay untouched.</td></tr>
+    <tr><td><code>.dev/docs/</code></td><td>Drafts and review reports. Git-ignored; only the
+      approved design is committed.</td></tr>
+  </tbody></table>
+
+  <h2 id="when-to-design">When to write a design first</h2>
+  <p>Write a design in <code>designs/</code> for a new engine command or route, a runtime
+  behaviour change, a change to the authoring contract, or anything touching the login layer.
+  Bug fixes and new documentation pages skip the design but still get a goldfish review. EGM's
+  <code>egm-drift-report</code> compares the designs and contracts with the code; run it now and
+  then so they stay true.</p>
+
+  <div class="adm tip">
+    <p class="adm-title">No AI required</p>
+    <p>Everything here is a convention. A design written by hand in the same template, reviewed by
+    a colleague who was not in the room, is the same workflow.</p>
+  </div>
+
+</main>
+</div>
+
+<script src="../assets/toc.js"></script>
+<script src="../assets/site.js"></script>
+</body>
+</html>
