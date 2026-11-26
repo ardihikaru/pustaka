@@ -61,6 +61,18 @@ window.DOCS.nav.push({
             { anchor: "failure-modes", title: "Failure modes and their fixes", text: "Common structural and lifecycle errors." },
             { anchor: "ci-gate", title: "Make the gate automatic", text: "Run the validator in continuous integration." }
           ]
+        },
+        {
+          id: "elephant-goldfish", file: "guide/elephant-goldfish.html", title: "Elephant & goldfish workflow",
+          desc: "Split AI authoring between a context-rich author and a fresh-context reviewer, following the Elephant-Goldfish Model.",
+          tags: ["ai", "egm", "review", "agents", "workflow", "claude"],
+          sections: [
+            { anchor: "two-roles", title: "Two roles", text: "The elephant drafts with full context; the goldfish reviews with none." },
+            { anchor: "pustaka-loop", title: "How it maps onto Pustaka", text: "pustaka check is the mechanical goldfish; a model reviewer covers the rest." },
+            { anchor: "claude-code", title: "In Claude Code", text: "Project skills and the pustaka-goldfish agent package the loop." },
+            { anchor: "repo-layout", title: "Where things live", text: "AGENTS.md, designs/, EGM.md contracts and .dev/docs." },
+            { anchor: "when-to-design", title: "When to write a design first", text: "Engine, runtime, contract and auth changes start with a design." }
+          ]
         }
       ]
     },

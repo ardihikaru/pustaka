@@ -36,6 +36,19 @@
   <div class="clog">
 
     <section class="rel rv">
+      <h3 id="v0-10-0">v0.10.0 <time datetime="2026-11-26">2026-11-26</time> <span class="bump minor">minor</span></h3>
+      <ul>
+        <li><span class="chg add">Added</span> Pustaka is now packaged for outside contributors. It ships an MIT licence, <code>CONTRIBUTING.md</code>, <code>SECURITY.md</code> (private advisories), a code of conduct, third-party notices, issue and pull-request templates, and a CI workflow. CI runs <code>gofmt</code>, <code>go vet</code>, <code>go test</code>, <code>go build</code> and <code>pustaka check ./docs</code> on every pull request.</li>
+        <li><span class="chg add">Added</span> The <a href="guide/elephant-goldfish.html">Elephant-Goldfish workflow</a>. The author (the elephant) drafts with full context, and reviewers in a fresh context (the goldfish) check the result. They are <code>pustaka check</code> and a read-only model reviewer that sees only the page and the spec. The repo ships them as <code>.claude/</code> skills (<code>pustaka-elephant</code>, <code>pustaka-author</code>, <code>pustaka-review</code>) and a <code>pustaka-goldfish</code> agent. <code>AGENTS.md</code> is now the agent instructions file. Approved designs go in <code>designs/</code>, and <code>EGM.md</code> files hold the directory contracts.</li>
+        <li><span class="chg add">Added</span> <code>PUSTAKA_AUTH_TRUSTED_PROXIES</code>, a list of IPs or CIDRs. When the direct peer is on the list, the login throttle keys on the client named in <code>X-Forwarded-For</code>, reading only the rightmost untrusted hop. Unset, nothing changes.</li>
+        <li><span class="chg fix">Fixed</span> Behind a reverse proxy, five wrong passwords from any visitor locked every visitor out for a minute. The throttle saw every request as coming from the proxy's address. The reference deployment now sets the trusted-proxy list automatically.</li>
+        <li><span class="chg change">Changed</span> The reference deployment in <code>deploy/</code> no longer commits addresses. The bind address, Docker subnet and trusted edge IP come from untracked <code>*.compose.env</code> files, and an empty value fails <code>docker compose config</code>. Traefik's static configuration moved from <code>traefik.yml</code> to compose flags. Upgrading needs the two env files; see <code>deploy/README.md</code>.</li>
+        <li><span class="chg change">Changed</span> This entry also records changes that shipped between v0.8.0 and v0.9.0 without an entry. With <code>PUSTAKA_AUTH</code> on, the login layer now denies by default, including the docs home. <code>PUSTAKA_AUTH_PUBLIC_HOME=1</code> restores the public home and assets. A public <code>sw.js</code> service-worker kill switch was added. A <code>Dockerfile</code>, local <code>docker-compose.yml</code> and edge deployment templates were added.</li>
+        <li><span class="chg fix">Fixed</span> The landing kicker still said v0.6.0. <code>product.repo</code> pointed at a placeholder. The README and agent instructions had stale page and record counts.</li>
+      </ul>
+    </section>
+
+    <section class="rel rv">
       <h3 id="v0-9-1">v0.9.1 <time datetime="2026-11-26">2026-11-26</time> <span class="bump patch">patch</span></h3>
       <ul>
         <li><span class="chg fix">Fixed</span> Returning readers could keep a cached page without the pre-paint snippet. Pages are revalidated with <code>If-Modified-Since</code>, and the server compared it with the file's own date, so an unchanged page answered 304 even though the server now serves different bytes. An injected page's <code>Last-Modified</code> is now never earlier than the server's start.</li>

@@ -1,5 +1,5 @@
 /* ============================================================
-   PUSTAKA runtime — v0.6
+   PUSTAKA runtime
    Static mode : open any page from disk. Shell is injected
                  client-side, search runs over toc.js sections.
    Server mode : when served by the `pustaka` Go binary, the
@@ -529,7 +529,7 @@
 
   /* ============================================================
      SERVER MODE — partial navigation (the HTMX pattern)
-     GET /__pustaka/partial/<file> → { id, title, html }
+     GET /__pustaka/partial/<file> → { id, title, classes, layout, html }
      swapped into <main.doc>; page scripts re-execute in order.
      ============================================================ */
   function navTo(href) {

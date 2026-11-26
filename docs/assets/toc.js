@@ -9,15 +9,15 @@
 window.DOCS = {
   site: {
     name: "Pustaka",
-    tagline: "Open-source documentation for humans and AI agents",
-    version: "v0.9.1"
+    tagline: "Open-source, HTML-first documentation for humans and AI agents",
+    version: "v0.10.0"
   },
   /* One repo documents ONE product. Fork this repo per product and
      update this block — the changelog page renders against it. */
   product: {
     name: "Pustaka",
-    semver: "0.9.1",
-    repo: "https://example.com/your-org/pustaka"
+    semver: "0.10.0",
+    repo: "https://github.com/ardihikaru/pustaka"
   },
   parts: [
     "assets/toc/overview.js",

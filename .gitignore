@@ -29,3 +29,8 @@ dev.docs.env
 prod.docs.env
 deploy/stacks/dev.docs.env
 deploy/stacks/prod.docs.env
+deploy/stacks/dev.compose.env
+deploy/stacks/prod.compose.env
+
+# EGM working artifacts (drafts, review reports); approved designs live in designs/
+.dev/

@@ -1,21 +1,36 @@
 name: pustaka-dev
 
+# Host-specific values come from an untracked env file, so this manifest is the
+# same for every installation:
+#   docker compose --env-file deploy/stacks/dev.compose.env -f deploy/stacks/compose.dev.yaml up -d --build
+# See compose.env.example. A missing value fails the render instead of guessing.
+
 networks:
   internal:
     name: pustaka-dev-int
     ipam:
       config:
-        - subnet: 172.30.15.0/24
+        - subnet: ${PUSTAKA_SUBNET:?set PUSTAKA_SUBNET in dev.compose.env}
 
 services:
   traefik:
     image: traefik:v3.3
     restart: unless-stopped
-    # Bind only to the WireGuard address; never publish this on the LAN.
+    # Static config lives in flags, not a traefik.yml, because Traefik reads
+    # exactly one static source and the trusted edge IP is installation-specific.
+    command:
+      - --entrypoints.web.address=:80
+      # Only the TLS edge may supply the original client IP headers.
+      - --entrypoints.web.forwardedheaders.trustedips=${PUSTAKA_EDGE_IP:?set PUSTAKA_EDGE_IP in dev.compose.env}
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+      - --api.dashboard=false
+      - --log.level=INFO
+      - --accesslog=true
+    # Bind only to the private tunnel address; never publish this on the LAN.
     ports:
-      - "10.10.0.2:19401:80"
+      - "${PUSTAKA_BIND:?set PUSTAKA_BIND in dev.compose.env}:80"
     volumes:
-      - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - ../traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     networks: [internal]
 
@@ -25,4 +40,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: [./dev.docs.env]
+    environment:
+      # Derived from the same two values Traefik uses, so the login throttle
+      # always sees real client addresses (overrides any env_file value).
+      PUSTAKA_AUTH_TRUSTED_PROXIES: "${PUSTAKA_SUBNET},${PUSTAKA_EDGE_IP}"
     networks: [internal]

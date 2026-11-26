@@ -15,3 +15,11 @@ temp/
 !*.env.example
 deploy/stacks/dev.docs.env
 deploy/stacks/prod.docs.env
+
+# EGM directory contracts are for contributors, not the served site
+**/EGM.md
+designs/
+.claude/
+.dev/
+AGENTS.md
+CLAUDE.md
